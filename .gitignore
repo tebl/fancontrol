@@ -1,0 +1,4 @@
+release/
+resources/
+*.sh
+*.conf
