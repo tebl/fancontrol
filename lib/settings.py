@@ -22,6 +22,7 @@ class Settings(LoggerMixin):
         if os.path.isfile(self.config_path):
             self.config.read(self.config_path)
         self.__restore_key('Settings','log_level', 'INFO')
+        self.__restore_key('Settings','delay', 10)
 
         if self.changed:
             self.save()
