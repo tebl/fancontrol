@@ -4,6 +4,16 @@ from .logger import Logger, LoggerMixin
 from pprint import pprint
 
 class Settings(LoggerMixin):
+    DEFAULT_LOG_LEVEL = Logger.INFO
+    DEFAULT_DELAY = 10
+    DEFAULT_ENABLED = 'yes'
+    DEFAULT_SENSOR_MIN = 20
+    DEFAULT_SENSOR_MAX = 60
+    DEFAULT_PWM_MIN = 0
+    DEFAULT_PWM_MAX = 255
+    DEFAULT_PWM_START = 32
+    DEFAULT_PWM_STOP = 40
+
     def __init__(self, config_path, logger):
         self.set_logger(logger)
         self.config = ConfigParser()
@@ -21,8 +31,8 @@ class Settings(LoggerMixin):
     def create_or_read(self):
         if os.path.isfile(self.config_path):
             self.config.read(self.config_path)
-        self.__restore_key('Settings','log_level', 'INFO')
-        self.__restore_key('Settings','delay', 10)
+        self.__restore_key('Settings','log_level', Logger.to_filter_level(Settings.DEFAULT_LOG_LEVEL))
+        self.__restore_key('Settings','delay', str(Settings.DEFAULT_DELAY))
 
         if self.changed:
             self.save()
@@ -39,13 +49,15 @@ class Settings(LoggerMixin):
 
 
     def set(self, section, key, value):
+        value = str(value)
         if not self.have_section(section):
             self.config[section] = {}
             self.changed = True
-        elif not self.have_key(section, key):
+        if not self.have_key(section, key):
             self.changed = True
-        elif self.get(section, key) != value:
-            self.changed = True
+        else:
+            if self.get(section, key) != value:
+                self.changed = True
         self.config[section][key] = value
 
 
@@ -74,33 +86,22 @@ class Settings(LoggerMixin):
         dev_base = self.__import_key(dev_base, 'dev_name', data['DEVNAME'])
         dev_base = self.__import_key(dev_base, 'dev_path', data['DEVPATH'])
 
-        remap = [
-            ('FCTEMPS', 'sensor', None),
-            ('MINTEMP', 'sensor_min', None),
-            ('MAXTEMP', 'sensor_max', None),
+        for (key_from, key_to) in [
+            ('FCTEMPS', 'sensor'),
+            ('MINTEMP', 'sensor_min'),
+            ('MAXTEMP', 'sensor_max'),
 
-            ('FCFANS', 'pwm_input', None),
-            ('MINPWM', 'pwm_min', 0),
-            ('MAXPWM', 'pwm_max', 255),
-            ('MINSTART', 'pwm_start', None),
-            ('MINSTOP', 'pwm_stop', None)
-        ]
-
-        for (key_from, key_to, default) in remap:
-            value = None
+            ('FCFANS', 'pwm_input'),
+            ('MINPWM', 'pwm_min'),
+            ('MAXPWM', 'pwm_max'),
+            ('MINSTART', 'pwm_start'),
+            ('MINSTOP', 'pwm_stop')
+        ]:
+            # Process key if it was recovered from the configuration, but
+            # silently ignored if not (picked up later in sanity check).
             if key_from in data:
                 value = data[key_from]
-            else:
-                if default == None:
-                    raise ValueError(Logger.to_key_value('No such key', key_from))
-                
-                # Silently ignore, but set defaults before?
-
-                # pprint(data['FCTEMPS'])
-                # self.__import_pwm_default(key_to)
-                # value = default
-            self.__import_pwm(dev_base, key_to, value)
-
+                self.__import_pwm(dev_base, key_to, value)
         self.save()
 
 
@@ -135,10 +136,21 @@ class Settings(LoggerMixin):
             value = value.removeprefix(dev_base + os.path.sep)
 
             # Set pwm_device if this is the first time encountering it,
-            # this is the device used. Sections are otherwise used as
-            # display names.
+            # this is the device used. Sections are otherwise just used
+            # as display names - we'd be wise to expect users to change
+            # them.
             if not self.have_section(section):
+                self.set(section, 'enabled', Settings.DEFAULT_ENABLED)
                 self.set(section, 'device', section)
+                self.set(section, 'sensor', '')
+                self.set(section, 'sensor_min', Settings.DEFAULT_SENSOR_MIN)
+                self.set(section, 'sensor_max', Settings.DEFAULT_SENSOR_MAX)
+                self.set(section, 'pwm_input', '')
+                self.set(section, 'pwm_min', Settings.DEFAULT_PWM_MIN)
+                self.set(section, 'pwm_max', Settings.DEFAULT_PWM_MAX)
+                self.set(section, 'pwm_start', Settings.DEFAULT_PWM_START)
+                self.set(section, 'pwm_stop', Settings.DEFAULT_PWM_STOP)
+
             self.set(section, key, value)
             self.__log_import(value, section, key)
 
