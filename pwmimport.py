@@ -3,9 +3,9 @@
 import sys
 import argparse
 import os
-from pathlib import Path
 from lib import Settings, PACKAGE_VERSION
 from lib.logger import *
+
 
 class PWMImport(LoggerMixin):
     def __init__(self, settings, logger):

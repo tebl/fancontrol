@@ -14,6 +14,7 @@ class Settings(LoggerMixin):
     DEFAULT_PWM_START = 32
     DEFAULT_PWM_STOP = 40
 
+
     def __init__(self, config_path, logger):
         self.set_logger(logger)
         self.config = ConfigParser()
