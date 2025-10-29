@@ -23,8 +23,10 @@ class Settings(LoggerMixin):
 
 
     def __getattr__(self, attr):
-        # if attr == 'generate_hex':
-        #     return self.config.getboolean('Settings', attr)
+        match attr:
+            case 'delay':
+                return self.config.getint('Settings', attr)
+
         return self.get('Settings', attr)
 
 
@@ -44,8 +46,8 @@ class Settings(LoggerMixin):
         self.changed = False
 
 
-    def get(self, section, key):
-        return self.config[section][key]
+    def get(self, section, key, fallback = None):
+        return self.config.get(section, key, fallback=fallback)
 
 
     def set(self, section, key, value):
@@ -58,7 +60,7 @@ class Settings(LoggerMixin):
         else:
             if self.get(section, key) != value:
                 self.changed = True
-        self.config[section][key] = value
+        self.config.set(section, key, value)
 
 
     def have_section(self, section):
