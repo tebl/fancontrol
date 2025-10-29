@@ -54,6 +54,25 @@ def is_config(config_path):
     return config_path
 
 
+def perform_verify(run_verify, logger, settings):
+    '''
+    Loads up the configuration then returns, this hopefully will allow us to
+    check if the runtime environment is somewhat sane before doing something
+    as insane as for instance stopping the CPU-fan. 
+    '''
+    if not run_verify:
+        return False
+
+    try:
+        logger.log(PACKAGE_VERSION)
+        FanControl(settings, logger)
+        logger.log('OK.')
+    except ConfigurationError as e:
+        logger.log(str(e), Logger.ERROR)
+        sys.exit(1)
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.description = 'Python fancontrol, spinning fans in the 21st century'
@@ -65,18 +84,15 @@ def main():
     logger = ConsoleLogger()
     settings = Settings(args.config_path, logger)
 
-    if args.verify:
-        try:
-            logger.log(PACKAGE_VERSION)
-            FanControl(settings, logger)
-            logger.log('OK.')
-        except ConfigurationError as e:
-            logger.log(str(e), Logger.ERROR)
-            sys.exit(1)
+    # If we're only running a verification of the configuration
+    if perform_verify(args.verify, logger, settings):
         sys.exit(0)
 
+    # From this point on the assumption is that we are no longer
+    # running interactively.
     fancontrol = FanControl(settings, logger)
 
+    # Set up a more suitable logger
     logger.log('reconfiguring logger', Logger.DEBUG)
     logger = fancontrol.reconfigure_logger()
     
