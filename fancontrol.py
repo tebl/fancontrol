@@ -3,6 +3,7 @@
 import sys
 import argparse
 import os
+import time
 from lib import Settings, PACKAGE_VERSION
 from lib.logger import *
 from pprint import pprint
@@ -12,91 +13,252 @@ class FanControl(LoggerMixin):
     def __init__(self, settings, logger):
         self.settings = settings
         self.logger = logger
-        self.read_configuration()
+        self.sensors = {}
+        self.__read_configuration()
+        self.running = False
 
 
-    def read_configuration(self):
-        if self.settings.delay < 1:
-            raise ConfigurationError("delay can't be less than 1", self.settings.delay)
-        for key in ['log_level', 'dev_base', 'dev_name', 'dev_path']:
-            value = self.settings.get('Settings', key)
-            if not value:
-                raise ConfigurationError(key + " has not been set", value)
+    def control(self):
+        self.running = True
 
-        self.load_fans()
+        self.log_info('{} starting'.format(self))
+        self.__setup()
+        while self.running:
+            try:
+                self.next_tick = time.time() + self.delay
+
+                self.__control()
+
+                while self.running and time.time() < self.next_tick:
+                    time.sleep(.3)
+            except KeyboardInterrupt:
+                self.running = False
+        self.__shutdown()
+        self.log_info('{} stopped'.format(self))
+
+
+    def __setup(self):
+        self.log_verbose('{} setup'.format(self))
+
+
+    def __control(self):
+        self.log_verbose('{} tick!'.format(self))
+
+
+    def __shutdown(self):
+        self.log_verbose('{} shutdown'.format(self))
+
+
+    def __str__(self):
+        return FanControl.__name__
+
+
+    def get_path(self):
+        return os.path.join('/sys/class/hwmon', self.dev_base)
+
+
+    def set_logger(self, logger):
+        for fan in self.fans:
+            fan.set_logger(logger)
+        for i, (name, sensor) in enumerate(self.sensors.items()):
+            sensor.set_logger(logger)
+        return super().set_logger(logger)
+
+
+    def create_sensor(self, fan, name):
+        device_path = os.path.join(self.get_path(), name)
+        sensor = None
+        if device_path in self.sensors:
+            sensor = self.sensors[device_path]
+        else:
+            self.log_debug('Creating Sensor({})'.format(name))
+            sensor = Sensor(
+                self, 
+                self.settings, 
+                self.logger, 
+                name, 
+                device_path
+            )
+            self.sensors[device_path] = sensor
+            
+        sensor.register_fan(fan)
+        return sensor
+
+
+    def __read_configuration(self):
+        self.delay = self.settings.delay
+        if self.delay < 1:
+            raise ConfigurationError("delay can't be less than 1", self.delay)
+        self.__get_attribute('log_level')
+
+        self.__get_attribute('dev_base')
+        self.__check_dev_base()
+
+        self.__get_attribute('dev_name')
+        self.__check_dev_name()
+
+        self.__get_attribute('dev_path')
+        self.__check_dev_path()
+
+        self.__load_fans()
         if not self.fans:
             if self.settings.error_on_empty:
                 raise ConfigurationError('No enabled fans!')
             self.log_warning('No enabled fans!')
 
 
-    def load_fans(self):
+    def __check_dev_base(self):
+        device_path = self.get_path()
+        if os.path.isdir(device_path):
+            self.log_verbose('Setting "dev_base" ({}) appears OK'.format(device_path))
+        else:
+            raise ConfigurationError('Setting "dev_base" ({}) does not match existing path'.format(self.dev_base), device_path)
+
+
+    def __check_dev_name(self):
+        '''
+        Safety check to ensure that the configured hwmonX driver name matches
+        the one specified in the configuration. 
+        '''
+        file_path = os.path.join(self.get_path(), 'name')
+        if not os.path.isfile(file_path):
+            raise ConfigurationError('Path does not exist', file_path)
+        with open(file_path, 'r') as file:
+            content = file.read()
+            content = content.strip()
+            if content == self.dev_name:
+                self.log_verbose('Setting "dev_name" ({}) appears OK'.format(file_path))
+            else:
+                raise ConfigurationError('Device name did not match configuration', self.dev_name)
+
+
+    def __check_dev_path(self):
+        '''
+        Safety check to ensure that the configured dev_path matches the kernel
+        link listed as hwmonX/device matches. If it doesn't then devices may
+        have changed since creating the configuration.
+        '''
+        device_path = os.path.join(self.get_path(), 'device')
+        linked_path = os.path.realpath(device_path)
+
+        config_path = self.dev_path
+        if config_path[0] != os.sep:
+            config_path = os.path.join('/sys', config_path)
+
+        if config_path == linked_path:
+            self.log_verbose('Setting "dev_path" ({}) appears OK'.format(linked_path))
+        else:
+            raise ConfigurationError('Path {} did not resolve to {}'.format(device_path, config_path))
+
+
+    def __get_attribute(self, attr):
+        value = self.settings.get('Settings', attr)
+        if not value:
+            raise ConfigurationError('Setting "{}" has not been set'.format(attr), value)
+        self.log_verbose('{}.{} = {}'.format(FanControl.__name__, attr, value))
+        setattr(self, attr, value)
+
+
+    def __load_fans(self):
         self.fans = []
         for name in self.settings.sections():
-            fan = Fan(self.settings, self.logger, name)
-            self.fans.append(fan)
-        return self.fans
+            self.log_debug('Creating Fan({})'.format(name))
+            self.fans.append( self.__create_fan(name) )
+    
 
-
-    def set_logger(self, logger):
-        for fan in self.fans:
-            fan.set_logger(logger)
-        return super().set_logger(logger)
+    def __create_fan(self, name):
+        Fan(self, self.settings, self.logger, name)
 
 
 class Fan(LoggerMixin):
     PWM_MIN = 0
     PWM_MAX = 255
 
-    def __init__(self, settings, logger, name):
+
+    def __init__(self, controller, settings, logger, name):
+        self.controller = controller
         self.settings = settings
         self.logger = logger
         self.name = name
-        self.read_configuration()
-        self.log_debug('Fan "{}" initialized OK'.format(self))
+        self.__read_configuration()
+        self.log_debug('{} initialized OK'.format(self))
 
 
     def __str__(self):
-        return 'Fan "{}"'.format(self.name)
+        return 'Fan({})'.format(self.name)
 
 
-    def read_configuration(self):
+    def __read_configuration(self):
         if not self.name:
             raise ConfigurationError('Malformed fan name', self.name)
         if not self.settings.have_section(self.name):
             raise ConfigurationError('Fan configuration not found', self)
         
         self.enabled = self.settings.is_enabled(self.name, 'enabled')
-        self.device = self.settings.get(self.name, 'device')
 
-        if not self.device:
-            raise ConfigurationError('Setting "device" not set', self)
+        self.__get_attribute('device')
 
-        self.sensor = self.settings.get(self.name, 'sensor')
-        if not self.sensor:
-            raise ConfigurationError('Setting "sensor" not set', self)
-        
-        self.sensor_min = self.settings.getint(self.name, 'sensor_min')
-        self.sensor_max = self.settings.getint(self.name, 'sensor_max')
+        self.__get_attribute('sensor')
+        self.sensor = self.controller.create_sensor(self, self.sensor)
+        self.log_verbose('{}.{} resolved to {}'.format(self, 'sensor', self.sensor))
+
+        self.__get_attribute_int('sensor_min')
+        self.__get_attribute_int('sensor_max')
         if self.sensor_min >= self.sensor_max:
-            raise ConfigurationError('Setting "sensor_min" ({}) must be lower than "pwm_max" ({})'.format(self.sensor_min, self.sensor_max))
+            raise ConfigurationError('Setting "sensor_min" ({}) must be lower than "pwm_max" ({})'.format(self.sensor_min, self.sensor_max), self)
 
-        self.pwm_input = self.settings.get(self.name, 'pwm_input')
-        if not self.pwm_input:
-            raise ConfigurationError('Setting "pwm_input" not set', self)
+        self.__get_attribute('pwm_input')
+        self.__get_attribute_int('pwm_min', min_value=Fan.PWM_MIN)
+        self.__get_attribute_int('pwm_max', max_value=Fan.PWM_MAX)
 
-        self.pwm_min = self.settings.getint(self.name, 'pwm_min')
-        if self.pwm_min < Fan.PWM_MIN:
-            raise ConfigurationError('Setting "pwm_min" must be at least {}" ({})'.format(Fan.PWM_MIN, self.pwm_min))
-
-        self.pwm_max = self.settings.getint(self.name, 'pwm_max')
-        if self.pwm_max > Fan.PWM_MAX:
-            raise ConfigurationError('Setting "pwm_max" can\'t exceed {} ({})'.format(Fan.PWM_MAX, self.pwm_max))
-
-        self.pwm_start = self.settings.getint(self.name, 'pwm_start')
-        self.pwm_stop = self.settings.getint(self.name, 'pwm_stop')
+        self.__get_attribute_int('pwm_start', min_value=Fan.PWM_MIN)
+        self.__get_attribute_int('pwm_stop', max_value=Fan.PWM_MAX)
         if self.pwm_stop >= self.pwm_max:
-            raise ConfigurationError('Setting "pwm_stop" ({}) must be lower than "pwm_max" ({})'.format(self.pwm_stop, self.pwm_max))
+            raise ConfigurationError('Setting "pwm_stop" ({}) must be lower than "pwm_max" ({})'.format(self.pwm_stop, self.pwm_max), self)
+
+
+    def __get_attribute(self, attr):
+        value = self.settings.get(self.name, attr)
+        if not value:
+            raise ConfigurationError('Setting "{}" has not been set'.format(attr), self)
+        self.log_verbose('{}.{} = {}'.format(self, attr, value))
+        setattr(self, attr, value)
+
+
+    def __get_attribute_int(self, attr, min_value=None, max_value=None):
+        value = self.settings.getint(self.name, attr)
+        if min_value != None:
+            if value < min_value:
+                raise ConfigurationError('Setting "{}" must be at least {}'.format(attr, min_value), self)
+        if max_value != None:
+            if value > max_value:
+                raise ConfigurationError('Setting "{}" must not exceed {}'.format(attr, max_value), self)
+        self.log_verbose('{}.{} = {}'.format(self, attr, value))
+        setattr(self, attr, value)
+
+
+class Sensor:
+    def __init__(self, controller, settings, logger, name, device_path):
+        self.controller = controller
+        self.settings = settings
+        self.logger = logger
+        self.name = name
+        self.device_path = device_path
+        self.__check_configuration()
+        self.fans = []
+
+
+    def register_fan(self, fan):
+        self.fans.append(fan)
+
+
+    def __str__(self):
+        return 'Sensor({})'.format(self.name)
+
+
+    def __check_configuration(self):
+        if not os.path.isfile(self.device_path):
+            raise ConfigurationError('Sensor {} does not exist'.format(self.device_path), self)
 
 
 class ConfigurationError(Exception):
@@ -160,6 +322,7 @@ def main():
 
     try:
         fancontrol = FanControl(settings, logger)
+        fancontrol.control()
     except ConfigurationError as e:
         logger.log(str(e), Logger.ERROR)
         sys.exit(1)
