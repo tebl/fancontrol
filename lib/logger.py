@@ -2,16 +2,21 @@ class Logger:
     ERROR = 0
     WARNING = 25
     INFO = 50
-    DEBUG = 100
+    DEBUG = 75
+    VERBOSE = 100
 
 
     def __init__(self, filter_level = INFO):
         self.set_filter(filter_level)
 
 
+    def __str__(self):
+        return Logger.to_key_value(type(self).__name__, Logger.to_filter_level(self.filter_level))
+
+
     def set_filter(self, filter_level):
         self.filter_level = Logger.to_filter_value(filter_level)
-        self.log(Logger.to_key_value("configuring log level", filter_level), Logger.DEBUG)
+        self.log(Logger.to_key_value("configuring log level", filter_level), Logger.VERBOSE)
 
 
     def log(self, message, log_level = INFO):
@@ -32,7 +37,9 @@ class Logger:
 
 
     def to_filter_level(log_level):
-        if log_level >= Logger.DEBUG:
+        if log_level >= Logger.VERBOSE:
+            return 'VERBOSE'
+        elif log_level >= Logger.DEBUG:
             return 'DEBUG'
         elif log_level >= Logger.INFO:
             return 'INFO'
@@ -52,6 +59,8 @@ class Logger:
                     return Logger.INFO
                 case 'DEBUG':
                     return Logger.DEBUG
+                case 'VERBOSE':
+                    return Logger.VERBOSE
                 case _:
                     raise ValueError(Logger.to_key_value("log_level not recognized", filter_level))
         return filter_level
@@ -120,6 +129,10 @@ class LoggerMixin:
 
     def log_debug(self, *args) -> None:
         self.logger.log(' '.join(args), Logger.DEBUG)
+
+
+    def log_verbose(self, *args) -> None:
+        self.logger.log(' '.join(args), Logger.VERBOSE)
 
 
     def configure_logger(self, filter_level) -> None:

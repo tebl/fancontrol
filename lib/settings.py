@@ -6,6 +6,8 @@ from pprint import pprint
 class Settings(LoggerMixin):
     DEFAULT_LOG_LEVEL = Logger.INFO
     DEFAULT_DELAY = 10
+    DEFAULT_ERROR_ON_EMPTY = 'yes'
+
     DEFAULT_ENABLED = 'yes'
     DEFAULT_SENSOR_MIN = 20
     DEFAULT_SENSOR_MAX = 60
@@ -27,6 +29,8 @@ class Settings(LoggerMixin):
         match attr:
             case 'delay':
                 return self.config.getint('Settings', attr)
+            case 'error_on_empty':
+                return self.config.getboolean('Settings', attr)
 
         return self.get('Settings', attr)
 
@@ -36,6 +40,7 @@ class Settings(LoggerMixin):
             self.config.read(self.config_path)
         self.__restore_key('Settings','log_level', Logger.to_filter_level(Settings.DEFAULT_LOG_LEVEL))
         self.__restore_key('Settings','delay', str(Settings.DEFAULT_DELAY))
+        self.__restore_key('Settings','error_on_empty', Settings.DEFAULT_ERROR_ON_EMPTY)
 
         if self.changed:
             self.save()
@@ -47,8 +52,24 @@ class Settings(LoggerMixin):
         self.changed = False
 
 
+    def sections(self, filter_special=True):
+        sections = self.config.sections()
+        sections = filter(lambda section: self.__include_section(section, filter_special), sections)
+        return list(sections)
+
+
+    def __include_section(self, section, filter_special=True):
+        if filter_special and section in ['Settings']:
+            return False
+        return self.is_enabled(section, 'enabled')
+
+
     def get(self, section, key, fallback = None):
         return self.config.get(section, key, fallback=fallback)
+
+
+    def getint(self, section, key):
+        return self.config.getint(section, key)
 
 
     def set(self, section, key, value):
