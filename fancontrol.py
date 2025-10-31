@@ -38,11 +38,25 @@ class FanControl(LoggerMixin):
 
     def __setup(self):
         self.log_verbose('{} setup'.format(self))
+        self.__setup_pwm()
+        self.__setup_fans()
+
+
+    def __setup_pwm(self):
+        for i, (name, sensor) in enumerate(self.sensors.items()):
+            if type(sensor) is OutputSensor:
+                sensor.setup()
+
+
+    def __setup_fans(self):
+        for fan in self.fans:
+            fan.setup()
 
 
     def __control(self):
-        self.log_verbose('{} tick!'.format(self))
         self.__update_sensors()
+        self.__update_fans()
+        self.__control_done()
 
 
     def __update_sensors(self):
@@ -50,9 +64,33 @@ class FanControl(LoggerMixin):
             sensor.update()
 
 
+    def __update_fans(self):
+        for fan in self.fans:
+            fan.update()
+
+
+    def __control_done(self):
+        for i, (name, sensor) in enumerate(self.sensors.items()):
+            if type(sensor) is OutputSensor:
+                sensor.perform_update()
+
+
 
     def __shutdown(self):
         self.log_verbose('{} shutdown'.format(self))
+        self.__shutdown_fans()
+        self.__shutdown_pwm()
+
+
+    def __shutdown_fans(self):
+        for fan in self.fans:
+            fan.shutdown()
+
+
+    def __shutdown_pwm(self):
+        for i, (name, sensor) in enumerate(self.sensors.items()):
+            if type(sensor) is OutputSensor:
+                sensor.shutdown()
 
 
     def __str__(self):
@@ -69,26 +107,6 @@ class FanControl(LoggerMixin):
         for i, (name, sensor) in enumerate(self.sensors.items()):
             sensor.set_logger(logger)
         return super().set_logger(logger)
-
-
-    def create_sensor(self, fan, name, sensor_class):
-        device_path = os.path.join(self.get_path(), name)
-        sensor = None
-        if device_path in self.sensors:
-            sensor = self.sensors[device_path]
-        else:
-            self.log_debug('Creating Sensor({})'.format(name))
-            sensor = sensor_class(
-                self, 
-                self.settings, 
-                self.logger, 
-                name, 
-                device_path
-            )
-            self.sensors[device_path] = sensor
-            
-        sensor.register_fan(fan)
-        return sensor
 
 
     def __read_configuration(self):
@@ -169,11 +187,31 @@ class FanControl(LoggerMixin):
         self.fans = []
         for name in self.settings.sections():
             self.log_debug('Creating Fan({})'.format(name))
-            self.fans.append( self.__create_fan(name) )
+            self.fans.append( self.create_fan(name) )
     
 
-    def __create_fan(self, name):
-        Fan(self, self.settings, self.logger, name)
+    def create_fan(self, name):
+        return Fan(self, self.settings, self.logger, name)
+
+
+    def create_sensor(self, fan, name, sensor_class):
+        device_path = os.path.join(self.get_path(), name)
+        sensor = None
+        if device_path in self.sensors:
+            sensor = self.sensors[device_path]
+        else:
+            self.log_debug('Creating Sensor({})'.format(name))
+            sensor = sensor_class(
+                self, 
+                self.settings, 
+                self.logger, 
+                name, 
+                device_path
+            )
+            self.sensors[device_path] = sensor
+            
+        sensor.register_fan(fan)
+        return sensor
 
 
 class Fan(LoggerMixin):
@@ -190,6 +228,18 @@ class Fan(LoggerMixin):
         self.log_debug('{} initialized OK'.format(self))
 
 
+    def setup(self):
+        pass
+
+
+    def shutdown(self):
+        pass
+
+
+    def update(self):
+        pass
+
+
     def __str__(self):
         return 'Fan({})'.format(self.name)
 
@@ -203,6 +253,8 @@ class Fan(LoggerMixin):
         self.enabled = self.settings.is_enabled(self.name, 'enabled')
 
         self.__get_attribute('device')
+        self.device = self.controller.create_sensor(self, self.device, OutputSensor)
+        self.log_verbose('{}.{} resolved to {}'.format(self, 'device', self.device))
 
         self.__get_attribute('sensor')
         self.sensor = self.controller.create_sensor(self, self.sensor, TemperatureSensor)
@@ -302,6 +354,45 @@ class Sensor(LoggerMixin):
         if not os.path.isfile(self.device_path):
             raise ConfigurationError('Sensor {} does not exist'.format(self.device_path), self)
         self.log_verbose('{}.{} input OK'.format(self, 'device_path', self.device_path))
+
+
+class OutputSensor(Sensor):
+    def __init__(self, controller, settings, logger, name, device_path):
+        super().__init__(controller, settings, logger, name, device_path)
+
+
+    def update(self):
+        '''
+        Start of every update cycle starts by updating every sensor
+        '''
+        return super().update()
+
+
+    def perform_update(self):
+        self.log_debug('{} updating'.format(self))
+        pass
+
+
+    def write(self, pwm_value):
+        self.log_verbose('{} write'.format(self, str(pwm_value)))
+        #  echo pwm_value > pwmX
+        pass
+
+
+    def setup(self):
+        self.log_verbose('{} setup'.format(self))
+        # echo 1 > pwmX_enable
+        pass
+
+
+    def shutdown(self):
+        self.log_verbose('{} shutdown'.format(self))
+        # echo 99 > pwmX_enable
+        pass
+
+    
+    def __check_configuration(self):
+        super().__check_configuration()
 
 
 class TemperatureSensor(Sensor):
