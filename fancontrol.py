@@ -26,7 +26,6 @@ class FanControl(LoggerMixin):
         while self.running:
             try:
                 self.next_tick = time.time() + self.delay
-
                 self.__control()
 
                 while self.running and time.time() < self.next_tick:
@@ -43,6 +42,13 @@ class FanControl(LoggerMixin):
 
     def __control(self):
         self.log_verbose('{} tick!'.format(self))
+        self.__update_sensors()
+
+
+    def __update_sensors(self):
+        for i, (name, sensor) in enumerate(self.sensors.items()):
+            sensor.update()
+
 
 
     def __shutdown(self):
@@ -65,14 +71,14 @@ class FanControl(LoggerMixin):
         return super().set_logger(logger)
 
 
-    def create_sensor(self, fan, name):
+    def create_sensor(self, fan, name, sensor_class):
         device_path = os.path.join(self.get_path(), name)
         sensor = None
         if device_path in self.sensors:
             sensor = self.sensors[device_path]
         else:
             self.log_debug('Creating Sensor({})'.format(name))
-            sensor = Sensor(
+            sensor = sensor_class(
                 self, 
                 self.settings, 
                 self.logger, 
@@ -199,7 +205,7 @@ class Fan(LoggerMixin):
         self.__get_attribute('device')
 
         self.__get_attribute('sensor')
-        self.sensor = self.controller.create_sensor(self, self.sensor)
+        self.sensor = self.controller.create_sensor(self, self.sensor, TemperatureSensor)
         self.log_verbose('{}.{} resolved to {}'.format(self, 'sensor', self.sensor))
 
         self.__get_attribute_int('sensor_min')
@@ -208,6 +214,9 @@ class Fan(LoggerMixin):
             raise ConfigurationError('Setting "sensor_min" ({}) must be lower than "pwm_max" ({})'.format(self.sensor_min, self.sensor_max), self)
 
         self.__get_attribute('pwm_input')
+        self.pwm_input = self.controller.create_sensor(self, self.pwm_input, FanSensor)
+        self.log_verbose('{}.{} resolved to {}'.format(self, 'pwm_input', self.pwm_input))
+
         self.__get_attribute_int('pwm_min', min_value=Fan.PWM_MIN)
         self.__get_attribute_int('pwm_max', max_value=Fan.PWM_MAX)
 
@@ -237,7 +246,7 @@ class Fan(LoggerMixin):
         setattr(self, attr, value)
 
 
-class Sensor:
+class Sensor(LoggerMixin):
     def __init__(self, controller, settings, logger, name, device_path):
         self.controller = controller
         self.settings = settings
@@ -248,17 +257,75 @@ class Sensor:
         self.fans = []
 
 
+    def update(self):
+        '''
+        Update sensor value, intended to be called at regular intervals. Note
+        that this is the only point where values are actually updated, other
+        methods work with stored values.
+        '''
+        try:
+            with open(self.device_path, 'r') as file:
+                data = file.read()
+                data = int(data)
+                self.value = data
+                self.log_verbose('{} = {}'.format(self, self.get_value()))
+        except ValueError as e:
+            self.log_error('{} could not be updated ({})'.format(self, str(e)))
+        except FileNotFoundError as e:
+            self.log_error('{} could not be updated ({})'.format(self, str(e)))
+
+
+    def read(self):
+        '''
+        Returns the last read sensor value
+        '''
+        return self.value
+
+
+    def get_value(self):
+        '''
+        Returns the last read sensor value as a string, formatted for output
+        with relevant unit designation.
+        '''
+        return str(self.read())
+
+
     def register_fan(self, fan):
         self.fans.append(fan)
 
 
     def __str__(self):
-        return 'Sensor({})'.format(self.name)
+        return '{}({})'.format(self.__class__.__name__, self.name)
 
 
     def __check_configuration(self):
         if not os.path.isfile(self.device_path):
             raise ConfigurationError('Sensor {} does not exist'.format(self.device_path), self)
+        self.log_verbose('{}.{} input OK'.format(self, 'device_path', self.device_path))
+
+
+class TemperatureSensor(Sensor):
+    def __init__(self, controller, settings, logger, name, device_path):
+        super().__init__(controller, settings, logger, name, device_path)
+
+
+    def read(self):
+        if self.value == None:
+            return None
+        return self.value / 1000.0
+    
+
+    def get_value(self):
+        return super().get_value() + "°C"
+
+
+class FanSensor(Sensor):
+    def __init__(self, controller, settings, logger, name, device_path):
+        super().__init__(controller, settings, logger, name, device_path)
+
+    
+    def get_value(self):
+        return super().get_value() + " RPM"
 
 
 class ConfigurationError(Exception):
@@ -326,6 +393,7 @@ def main():
     except ConfigurationError as e:
         logger.log(str(e), Logger.ERROR)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

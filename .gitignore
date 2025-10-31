@@ -5,3 +5,4 @@ resources/
 *.ini
 *.tmp
 *.pyc
+hwmon_*
