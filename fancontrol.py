@@ -52,7 +52,7 @@ class FanControl(LoggerMixin):
 
     def __failsafe(self):
         self.log_error('failsafe triggered, attempting to crash in a safe place')
-        self.__shutdown()
+        self.__shutdown(ignore_exceptions=True)
 
 
     def __setup_fans(self):
@@ -96,26 +96,26 @@ class FanControl(LoggerMixin):
             output.perform_update()
 
 
-    def __shutdown(self):
+    def __shutdown(self, ignore_exceptions = False):
         self.log_verbose('{} shutdown'.format(self))
         for method in [self.__shutdown_fans, self.__shutdown_pwm]:
             try:
                 self.log_verbose('{} running {}...'.format(self, method.__name__))
-                result = method()
+                result = method(ignore_exceptions)
                 self.log_verbose('{} ... {}'.format(self, result))
             except RuntimeError as e:
                 self.log_error('{} encountered {} during shutdown phase!'.format(self, e))
 
 
-    def __shutdown_fans(self):
+    def __shutdown_fans(self, ignore_exceptions = False):
         for fan in self.fans:
-            fan.shutdown()
+            fan.shutdown(ignore_exceptions)
         return 'OK'
 
 
-    def __shutdown_pwm(self):
+    def __shutdown_pwm(self, ignore_exceptions = False):
         for i, (name, output) in enumerate(self.outputs.items()):
-            output.shutdown()
+            output.shutdown(ignore_exceptions)
         return 'OK'
 
 
@@ -264,7 +264,7 @@ class Fan(LoggerMixin):
         self.device.request_value(self, self.__calculate())
 
 
-    def shutdown(self):
+    def shutdown(self, ignore_exceptions = False):
         '''
         Called by FanControl when shutting down. As we don't really know
         anything about the underlying hardware at this level we'll just
@@ -431,7 +431,7 @@ class OutputSensor(Sensor):
 
     def __init__(self, controller, settings, logger, name, device_path):
         super().__init__(controller, settings, logger, name, device_path)
-        self.last_enable = None
+        self.original_enable = None
         self.enable_path = device_path + "_enable"
         self.__check_configuration()
         self.requests = []
@@ -480,12 +480,6 @@ class OutputSensor(Sensor):
         self.requests = []
 
 
-    def __write(self, pwm_value):
-        self.log_verbose('{} write'.format(self, str(pwm_value)))
-        #  echo pwm_value > pwmX
-        pass
-
-
     def setup(self):
         '''
         Signal output sensor to turn on, this will be called after fans are
@@ -497,16 +491,28 @@ class OutputSensor(Sensor):
         #     self.log_warning('{} attempting setup (no fan suggestions)'.format(self))
         # self.log_warning(str(self.get_value()))
         self.log_verbose('{} setup'.format(self))
-        # echo 1 > pwmX_enable
+
+        self.read_original_enable()
+        success = self.write_enable(self.PWM_ENABLE_MANUAL)
+        self.log_info('{} set to MANUAL control'.format(self))
+        return success
 
 
-        self.read_last_enable()
+    def write_enable(self, value, ignore_exceptions = False):
+        return self.__write(self.enable_path, self.name + '_enable', value, ignore_exceptions)
 
-        pass
 
-
-    def set_enable(self):
-        pass
+    def __write(self, path, name, pwm_value, ignore_exceptions = False):
+        self.log_verbose('{} write {} to {}'.format(self, str(pwm_value), path))
+        try:
+            with open(path, 'w') as file:
+                file.write('{}'.format(str(pwm_value)))
+                return True
+        except (FileNotFoundError, PermissionError) as e:
+            if not ignore_exceptions:
+                raise RuntimeError('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
+            self.log_warning('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
+        return False
 
 
     def read_enable(self):
@@ -516,19 +522,33 @@ class OutputSensor(Sensor):
             raise RuntimeError('{} could not read {}_enable'.format(self, self.name))
 
 
-    def read_last_enable(self):
-        self.last_enable = self.read_enable()
-        self.log_debug('{} storing last {}_enable ({})'.format(self, self.name, str(self.last_enable)))
+    def read_original_enable(self):
+        self.original_enable = self.read_enable()
+        self.log_debug('{} storing original {}_enable ({})'.format(self, self.name, str(self.original_enable)))
 
 
-    def shutdown(self):
+    def shutdown(self, ignore_exceptions = False):
         '''
         Signal output sensor to shut down, this is called immediately after
         fans are called to shut down (ending with a suggested value).
         '''
         self.log_verbose('{} shutdown'.format(self))
-        # echo 99 > pwmX_enable
-        pass
+        if self.original_enable == None:
+            self.log_warning('{} had no last_enable during shutdown'.format(self))
+
+        if self.write_enable(self.original_enable, ignore_exceptions):
+            self.log_info('{} returned to original control ({})'.format(self, str(self.original_enable)))
+        else:
+            self.log_warning('{} could not return to original control ({}), setting max value ...'.format(self, str(self.original_enable)))
+            if not self.__write(self.device_path, self.name, self.__get_max(), ignore_exceptions):
+                self.log_error('Could not set max value either... hope it all works out for you :-)')
+
+
+    def __get_max(self):
+        '''
+        Should probably check associated fans and get the max from there
+        '''
+        return self.PWM_MAX
 
     
     def __check_configuration(self):
