@@ -14,6 +14,7 @@ class FanControl(LoggerMixin):
         self.settings = settings
         self.logger = logger
         self.sensors = {}
+        self.outputs = {}
         self.__read_configuration()
         self.running = False
 
@@ -30,6 +31,7 @@ class FanControl(LoggerMixin):
 
                 while self.running and time.time() < self.next_tick:
                     time.sleep(.3)
+                    self.__u_control()
             except KeyboardInterrupt:
                 self.running = False
         self.__shutdown()
@@ -38,8 +40,24 @@ class FanControl(LoggerMixin):
 
     def __setup(self):
         self.log_verbose('{} setup'.format(self))
-        self.__setup_pwm()
-        self.__setup_fans()
+        try:
+            self.__update_sensors()
+            self.__setup_fans()
+            self.__setup_pwm()
+        except RuntimeError as e:
+            self.log_error('{} encountered during setup phase, halting...'.format(e))
+            self.running = False
+            self.__failsafe()
+
+
+    def __failsafe(self):
+        self.log_error('failsafe triggered, attempting to crash in a safe place')
+        self.__shutdown()
+
+
+    def __setup_fans(self):
+        for fan in self.fans:
+            fan.setup()
 
 
     def __setup_pwm(self):
@@ -48,15 +66,19 @@ class FanControl(LoggerMixin):
                 sensor.setup()
 
 
-    def __setup_fans(self):
-        for fan in self.fans:
-            fan.setup()
-
-
     def __control(self):
+        '''
+        Called once at the start of every update cycle, takes care of updating
+        and then allowing each component to plan their next move.
+        '''
         self.__update_sensors()
         self.__update_fans()
         self.__control_done()
+
+
+    def __u_control(self):
+        for i, (name, sensor) in enumerate(self.outputs.items()):
+            sensor.u_tick()
 
 
     def __update_sensors(self):
@@ -70,27 +92,31 @@ class FanControl(LoggerMixin):
 
 
     def __control_done(self):
-        for i, (name, sensor) in enumerate(self.sensors.items()):
-            if type(sensor) is OutputSensor:
-                sensor.perform_update()
-
+        for i, (name, output) in enumerate(self.outputs.items()):
+            output.perform_update()
 
 
     def __shutdown(self):
         self.log_verbose('{} shutdown'.format(self))
-        self.__shutdown_fans()
-        self.__shutdown_pwm()
+        for method in [self.__shutdown_fans, self.__shutdown_pwm]:
+            try:
+                self.log_verbose('{} running {}...'.format(self, method.__name__))
+                result = method()
+                self.log_verbose('{} ... {}'.format(self, result))
+            except RuntimeError as e:
+                self.log_error('{} encountered {} during shutdown phase!'.format(self, e))
 
 
     def __shutdown_fans(self):
         for fan in self.fans:
             fan.shutdown()
+        return 'OK'
 
 
     def __shutdown_pwm(self):
-        for i, (name, sensor) in enumerate(self.sensors.items()):
-            if type(sensor) is OutputSensor:
-                sensor.shutdown()
+        for i, (name, output) in enumerate(self.outputs.items()):
+            output.shutdown()
+        return 'OK'
 
 
     def __str__(self):
@@ -209,6 +235,8 @@ class FanControl(LoggerMixin):
                 device_path
             )
             self.sensors[device_path] = sensor
+            if sensor_class is OutputSensor:
+                self.outputs[device_path] = sensor
             
         sensor.register_fan(fan)
         return sensor
@@ -229,15 +257,46 @@ class Fan(LoggerMixin):
 
 
     def setup(self):
-        pass
+        '''
+        Called by FanControl when starting up, and as a starting point we'll
+        just make a suggestion of a suitable place to start.
+        '''
+        self.device.request_value(self, self.__calculate())
 
 
     def shutdown(self):
-        pass
+        '''
+        Called by FanControl when shutting down. As we don't really know
+        anything about the underlying hardware at this level we'll just
+        request that the fan be put on the hardware level and hope that
+        the OutputSensor-class knows how to make better decisions.
+        '''
+        self.device.request_value(self, self.pwm_max)
 
 
     def update(self):
-        pass
+        '''
+        Called by FanControl during update cycles, somewhere at the start of
+        it - immediately after updating sensors. At this point we're not
+        writing any values directly, instead we're evaluating the current
+        state and then requesting what we consider to be the next step.
+        '''
+        self.device.request_value(self, self.__calculate())
+
+
+    def __calculate(self):
+        temp = self.sensor.read()
+
+        if temp < self.sensor_min:
+            return self.pwm_min
+        if temp > self.sensor_max:
+            return self.pwm_max
+        return round(
+            self.PWM_MIN +
+            (float(temp - self.sensor_min) /
+            float(self.sensor_max - self.sensor_min)) *
+            (self.PWM_MAX - self.PWM_MIN)
+        )
 
 
     def __str__(self):
@@ -305,8 +364,8 @@ class Sensor(LoggerMixin):
         self.logger = logger
         self.name = name
         self.device_path = device_path
-        self.__check_configuration()
         self.fans = []
+        self.__check_configuration()
 
 
     def update(self):
@@ -314,17 +373,24 @@ class Sensor(LoggerMixin):
         Update sensor value, intended to be called at regular intervals. Note
         that this is the only point where values are actually updated, other
         methods work with stored values.
+
+        NB! There is an occurrence of double-reads when first starting up, this
+            is because fans may require sensor readings in order to select a
+            suitable startup value.
         '''
         try:
-            with open(self.device_path, 'r') as file:
-                data = file.read()
-                data = int(data)
-                self.value = data
-                self.log_verbose('{} = {}'.format(self, self.get_value()))
+            self.value = self.read_direct(self.device_path)
+            self.log_verbose('{} = {}'.format(self, self.get_value()))
         except ValueError as e:
             self.log_error('{} could not be updated ({})'.format(self, str(e)))
         except FileNotFoundError as e:
             self.log_error('{} could not be updated ({})'.format(self, str(e)))
+
+
+    def read_direct(self, sensor_path):
+        with open(sensor_path, 'r') as file:
+            data = file.read()
+            return int(data)
 
 
     def read(self):
@@ -352,47 +418,123 @@ class Sensor(LoggerMixin):
 
     def __check_configuration(self):
         if not os.path.isfile(self.device_path):
-            raise ConfigurationError('Sensor {} does not exist'.format(self.device_path), self)
+            raise ConfigurationError('{}.{} not found'.format(self, 'device_path'), self.device_path)
         self.log_verbose('{}.{} input OK'.format(self, 'device_path', self.device_path))
 
 
 class OutputSensor(Sensor):
+    PWM_MIN = 0
+    PWM_MAX = 255
+    PWM_ENABLE_MANUAL = 1
+    PWM_ENABLE_AUTO = 99
+
+
     def __init__(self, controller, settings, logger, name, device_path):
         super().__init__(controller, settings, logger, name, device_path)
+        self.last_enable = None
+        self.enable_path = device_path + "_enable"
+        self.__check_configuration()
+        self.requests = []
 
 
     def update(self):
         '''
-        Start of every update cycle starts by updating every sensor
+        The start of every update cycle begins with  an update to every sensor.
+        This includes OutputSensor as we're this will also read the current
+        PWM-value (0-255).
         '''
-        return super().update()
+        super().update()
+        self.__discard_requests()
+    
 
-
-    def perform_update(self):
-        self.log_debug('{} updating'.format(self))
+    def u_tick(self):
+        '''
+        The period between update cycles are split up into micro-ticks, duration
+        not guaranteed. If we need something to change gradually over time, this
+        is the place to do it.
+        '''
         pass
 
 
-    def write(self, pwm_value):
+    def request_value(self, requester, pwm_value):
+        '''
+        Called by fans in order to request a value, but at this point we're not
+        actually doing anything except logging the request. Values will be only
+        get updated when called by FanControl (see perform_update).
+        '''
+        self.log_verbose('{} requested {} from {}'.format(requester, str(pwm_value), self))
+        self.requests.append((requester, pwm_value))
+
+
+    def perform_update(self):
+        '''
+        Apply some sort of algorithm before updating the actual PWM-values.
+        '''
+        self.log_debug('{} updating'.format(self))
+
+
+    def __discard_requests(self):
+        if self.requests:
+            for (requester, pwm_value) in self.requests:
+                self.log_warning('{} discarding request ({} of {})'.format(self, requester, str(pwm_value)))
+        self.requests = []
+
+
+    def __write(self, pwm_value):
         self.log_verbose('{} write'.format(self, str(pwm_value)))
         #  echo pwm_value > pwmX
         pass
 
 
     def setup(self):
+        '''
+        Signal output sensor to turn on, this will be called after fans are
+        instructed to request a sensible ititialization value. At this point
+        we're expected to take control over fans, but should ensure that
+        we've got a safe starting point.
+        '''
+        # if not self.requests:
+        #     self.log_warning('{} attempting setup (no fan suggestions)'.format(self))
+        # self.log_warning(str(self.get_value()))
         self.log_verbose('{} setup'.format(self))
         # echo 1 > pwmX_enable
+
+
+        self.read_last_enable()
+
         pass
 
 
+    def set_enable(self):
+        pass
+
+
+    def read_enable(self):
+        try:
+            return self.read_direct(self.enable_path)
+        except (FileNotFoundError, ValueError) as e:
+            raise RuntimeError('{} could not read {}_enable'.format(self, self.name))
+
+
+    def read_last_enable(self):
+        self.last_enable = self.read_enable()
+        self.log_debug('{} storing last {}_enable ({})'.format(self, self.name, str(self.last_enable)))
+
+
     def shutdown(self):
+        '''
+        Signal output sensor to shut down, this is called immediately after
+        fans are called to shut down (ending with a suggested value).
+        '''
         self.log_verbose('{} shutdown'.format(self))
         # echo 99 > pwmX_enable
         pass
 
     
     def __check_configuration(self):
-        super().__check_configuration()
+        if not os.path.isfile(self.enable_path):
+            raise ConfigurationError('{}.{} not found'.format(self, 'enable_path'), self.enable_path)
+        self.log_verbose('{}.{} input OK'.format(self, 'enable_path', self.device_path))
 
 
 class TemperatureSensor(Sensor):
@@ -425,6 +567,16 @@ class ConfigurationError(Exception):
             super().__init__(Logger.to_key_value(message, details))
         else:
             super().__init__(message)
+
+
+class RuntimeError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
+
+
+    def __str__(self):
+        return '{}({})'.format(self.__class__.__name__, self.message)
 
 
 def is_config(config_path):
