@@ -93,7 +93,7 @@ class FanControl(LoggerMixin):
 
     def __control_done(self):
         for i, (name, output) in enumerate(self.outputs.items()):
-            output.perform_update()
+            output.plan_ahead()
 
 
     def __shutdown(self, ignore_exceptions = False):
@@ -285,18 +285,26 @@ class Fan(LoggerMixin):
 
 
     def __calculate(self):
+        '''
+        Calculate the pwm_value to request from output. The rationale is that
+        unless we hit the lower and upper bounds, then we're mapping from
+        temperatures to actual PWM-values.
+
+        Note that we're counting pwm_stop as the lowest point we can spin,
+        this is because this value is the lowest we can go before it seizes.
+        '''
         temp = self.sensor.read()
 
         if temp < self.sensor_min:
             return self.pwm_min
         if temp > self.sensor_max:
             return self.pwm_max
-        return round(
-            self.PWM_MIN +
-            (float(temp - self.sensor_min) /
-            float(self.sensor_max - self.sensor_min)) *
-            (self.PWM_MAX - self.PWM_MIN)
-        )
+        
+        return round(self.__calculate_remap(temp, self.sensor_min, self.sensor_max, self.pwm_stop, self.pwm_max))
+
+
+    def __calculate_remap(self, value, in_min, in_max, out_min, out_max):
+        return out_min + (float(value - in_min) / float(in_max - in_min)) * (out_max - out_min)
 
 
     def __str__(self):
@@ -335,7 +343,9 @@ class Fan(LoggerMixin):
         self.__get_attribute_int('pwm_stop', max_value=Fan.PWM_MAX)
         if self.pwm_stop >= self.pwm_max:
             raise ConfigurationError('Setting "pwm_stop" ({}) must be lower than "pwm_max" ({})'.format(self.pwm_stop, self.pwm_max), self)
-
+        if self.pwm_stop < self.pwm_min:
+            raise ConfigurationError('Setting "pwm_stop" ({}) must be larger than "pwm_min" ({})'.format(self.pwm_stop, self.pwm_min), self)
+            
 
     def __get_attribute(self, attr):
         value = self.settings.get(self.name, attr)
@@ -425,16 +435,32 @@ class Sensor(LoggerMixin):
 class OutputSensor(Sensor):
     PWM_MIN = 0
     PWM_MAX = 255
+    
     PWM_ENABLE_MANUAL = 1
+    "Manual control, meaning that the user control its value"
+
     PWM_ENABLE_AUTO = 99
+    "Automatic control, meaning that the underlying chipset control the value"
+
+    STATE_STOPPED = 0
+    STATE_STARTING = 1
+    STATE_RUNNING = 2
+    STATE_STOPPING = 3
+    STATE_UNKNOWN = 99
 
 
     def __init__(self, controller, settings, logger, name, device_path):
         super().__init__(controller, settings, logger, name, device_path)
         self.original_enable = None
         self.enable_path = device_path + "_enable"
-        self.__check_configuration()
+        self.state = self.STATE_UNKNOWN
         self.requests = []
+
+        self.last_value = 0
+        self.target_value = 0
+        self.next_step = None
+
+        self.__check_configuration()
 
 
     def update(self):
@@ -453,7 +479,124 @@ class OutputSensor(Sensor):
         not guaranteed. If we need something to change gradually over time, this
         is the place to do it.
         '''
-        pass
+        match self.state:
+            case self.STATE_STARTING:
+                return self.__tick_from_starting()
+            case self.STATE_STOPPING:
+                return self.__tick_from_stopping()
+            case self.STATE_RUNNING:
+                return self.__tick_from_running()
+        return False
+
+    
+    def __tick_from_starting(self, step_delay = 2):
+        if self.next_step == None:
+            return self.__until_next_step(step_delay)
+        
+        if self.__at_next_step():
+            # Timer ran out, assume it started instead of doing sensibly things
+            # like checking.
+            self.__new_state(self.STATE_RUNNING)
+
+
+    def __tick_from_stopping(self, step_delay = .5):
+        if self.next_step == None:
+            return self.__until_next_step(step_delay)
+
+        if self.__at_next_step():
+            if self.last_value == self.target_value:
+                return self.__new_state(self.STATE_STOPPED)
+            
+            next_value = self.__next_step_value()
+            self.log_verbose('{} stepping from {} to {} towards {}'.format(self, str(self.last_value), str(next_value), str(self.target_value)))
+            self.last_value = next_value
+            self.__write(self.device_path, self.name, self.last_value)
+            return self.__until_next_step(step_delay)
+
+
+    def __tick_from_running(self, step_delay = .5):
+        if self.next_step == None:
+            return self.__until_next_step(step_delay)
+
+        if self.__at_next_step():
+            if self.last_value == self.target_value:
+                return self.__until_next_step(step_delay)
+            
+            next_value = self.__next_step_value()
+            self.log_verbose('{} stepping from {} to {} towards {}'.format(self, str(self.last_value), str(next_value), str(self.target_value)))
+            self.last_value = next_value
+            self.__write(self.device_path, self.name, self.last_value)
+            return self.__until_next_step(step_delay)
+
+
+    def __next_step_value(self, pwm_steps = 10):
+        if self.last_value < self.target_value:
+            return self.last_value + min([pwm_steps, abs(self.last_value - self.target_value)])
+        if self.last_value > self.target_value:
+            return self.last_value - min([pwm_steps, abs(self.last_value - self.target_value)])
+        return self.last_value
+
+
+    def __until_next_step(self, duration):
+        self.next_step = time.time() + duration
+        return True
+
+
+    def __at_next_step(self):
+        return time.time() > self.next_step
+
+
+    def __new_state(self, new_state):
+        self.log_debug('{} setting new state {}'.format(self, self.__pwm_state_str(new_state)))
+        self.state = new_state
+        self.next_step = None
+
+
+    def plan_ahead(self):
+        '''
+        Apply some sort of algorithm before updating the actual PWM-values.
+        '''
+        self.log_verbose('{} updating'.format(self))
+        match self.state:
+            case self.STATE_STOPPED:
+                return self.__plan_from_stopped()
+            case self.STATE_RUNNING:
+                return self.__plan_from_running()
+            case _:
+                self.log_error('{} encountered state {} during planning'.format(self, self.__pwm_state_str(self.state)))
+                return False
+
+
+    def __plan_from_stopped(self):
+        max_value = max(
+            [pwm_value for (requester, pwm_value) in self.requests], 
+            default=self.PWM_MAX
+        )
+        max_start = max(
+            [requester.pwm_start for (requester, pwm_value) in self.requests], 
+            default=self.PWM_MAX
+        )
+        if max_value > self.PWM_MIN:
+            self.__set_starting(max_start, max_value)
+        self.__discard_requests(warn_dropped=False)
+
+
+    def __set_starting(self, pwm_start, pwm_target):
+        if self.__write(self.device_path, self.name, pwm_start):
+            self.__new_state(self.STATE_STARTING)
+            self.target_value = pwm_target
+            self.last_value = pwm_start
+
+
+    def __plan_from_running(self):
+        self.log_verbose('{} is planning for running'.format(self))
+
+        self.last_value = self.read()
+        self.target_value = self.__get_max_request()
+        if (self.target_value == 0):
+            self.__new_state(self.STATE_STOPPING)
+
+        self.__discard_requests(warn_dropped=False)
 
 
     def request_value(self, requester, pwm_value):
@@ -466,15 +609,8 @@ class OutputSensor(Sensor):
         self.requests.append((requester, pwm_value))
 
 
-    def perform_update(self):
-        '''
-        Apply some sort of algorithm before updating the actual PWM-values.
-        '''
-        self.log_debug('{} updating'.format(self))
-
-
-    def __discard_requests(self):
-        if self.requests:
+    def __discard_requests(self, warn_dropped = True):
+        if self.requests and warn_dropped:
             for (requester, pwm_value) in self.requests:
                 self.log_warning('{} discarding request ({} of {})'.format(self, requester, str(pwm_value)))
         self.requests = []
@@ -487,15 +623,46 @@ class OutputSensor(Sensor):
         we're expected to take control over fans, but should ensure that
         we've got a safe starting point.
         '''
-        # if not self.requests:
-        #     self.log_warning('{} attempting setup (no fan suggestions)'.format(self))
-        # self.log_warning(str(self.get_value()))
         self.log_verbose('{} setup'.format(self))
+        self.__discard_requests(warn_dropped=False)
+
+        # Guess state based on current value
+        self.state = self.STATE_STOPPED
+        for fan in self.fans:
+            if fan.pwm_input.read() > 0:
+                self.log_debug('{} detected spinning {} reading {}'.format(self, fan, fan.pwm_input.get_value()))
+                self.state = self.STATE_RUNNING
+                break
+        self.log_debug('{} state set to {}'.format(self, self.__pwm_state_str(self.state)))
+        self.last_value = self.read()
+        self.target_value = self.last_value
 
         self.read_original_enable()
         success = self.write_enable(self.PWM_ENABLE_MANUAL)
-        self.log_info('{} set to MANUAL control'.format(self))
+        self.log_info('{} set to {} control'.format(self, self.__pwm_mode_str(self.PWM_ENABLE_MANUAL)))
         return success
+
+
+    def __pwm_mode_str(self, mode):
+        match mode:
+            case self.PWM_ENABLE_MANUAL:
+                return "MANUAL"
+            case self.PWM_ENABLE_AUTO:
+                return "AUTO"
+        return 'UNKNOWN({})'.format(str(mode))
+
+
+    def __pwm_state_str(self, state):
+        match state:
+            case self.STATE_STOPPED:
+                return "STOPPED"
+            case self.STATE_STARTING:
+                return "STARTING"
+            case self.STATE_RUNNING:
+                return "RUNNING"
+            case self.STATE_STOPPING:
+                return "STOPPING"
+        return 'UNKNOWN({})'.format(str(state))
 
 
     def write_enable(self, value, ignore_exceptions = False):
@@ -530,25 +697,54 @@ class OutputSensor(Sensor):
     def shutdown(self, ignore_exceptions = False):
         '''
         Signal output sensor to shut down, this is called immediately after
-        fans are called to shut down (ending with a suggested value).
+        fans are called to shut down with a suggested value in requests.
         '''
         self.log_verbose('{} shutdown'.format(self))
         if self.original_enable == None:
             self.log_warning('{} had no last_enable during shutdown'.format(self))
-
-        if self.write_enable(self.original_enable, ignore_exceptions):
-            self.log_info('{} returned to original control ({})'.format(self, str(self.original_enable)))
         else:
-            self.log_warning('{} could not return to original control ({}), setting max value ...'.format(self, str(self.original_enable)))
-            if not self.__write(self.device_path, self.name, self.__get_max(), ignore_exceptions):
-                self.log_error('Could not set max value either... hope it all works out for you :-)')
+            if self.write_enable(self.original_enable, ignore_exceptions):
+                self.log_info('{} returned to original control ({})'.format(self, self.__pwm_mode_str(self.original_enable)))
+                self.__discard_requests(warn_dropped=False)
+                return True
+        
+        if self.requests:
+            value = self.__get_max_request()
+            self.log_warning('{} could not return to original control ({}), setting it to {}'.format(self, self.__pwm_mode_str(self.original_enable), str(value)))
+            if self.__write(self.device_path, self.name, value, ignore_exceptions):
+                self.__discard_requests(warn_dropped=False)
+                return True
+            
+        value = self.__get_max()
+        self.log_error('{} could not set that either, but try with max value anyway ({})'.format(self, value))
+        if not self.__write(self.device_path, self.name, value, ignore_exceptions):
+            self.log_error('All attempts failed... hope everything works out for you :-)')
+
+        # Clear requests - just in case we somehow bugged into starting up again
+        self.__discard_requests(warn_dropped=False)
+        return False
 
 
     def __get_max(self):
         '''
         Should probably check associated fans and get the max from there
         '''
-        return self.PWM_MAX
+        return max([fan.pwm_max for fan in self.fans], 
+                   default=self.PWM_MAX)
+
+
+    def __get_max_request(self):
+        '''
+        Get maximum from requested values, this ensures that we all always have
+        sufficient power when controlling multiple fans.
+        '''
+        return max([pwm_value for (requester, pwm_value) in self.requests], 
+                   default=self.PWM_MAX)
+
+
+    def __debug_requests(self):
+        for (requester, pwm_value) in self.requests:
+            self.log_verbose('Request for {} from {}'.format(str(pwm_value), requester))
 
     
     def __check_configuration(self):

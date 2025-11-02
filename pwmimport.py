@@ -12,6 +12,7 @@ class PWMImport(LoggerMixin):
         self.settings = settings
         self.logger = logger
 
+
     def import_configuration(self, input_path):
         self.log_info("Importing from", input_path)
         data = self.__read_configuration(input_path)
