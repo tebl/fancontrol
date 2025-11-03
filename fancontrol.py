@@ -8,6 +8,7 @@ from lib import Settings, PACKAGE_VERSION
 from lib.logger import *
 from lib.exceptions import *
 from lib.sensor import RawSensor
+from lib.utils import remap_int
 from pprint import pprint
 
 
@@ -291,9 +292,6 @@ class Fan(LoggerMixin):
         Calculate the pwm_value to request from output. The rationale is that
         unless we hit the lower and upper bounds, then we're mapping from
         temperatures to actual PWM-values.
-
-        Note that we're counting pwm_stop as the lowest point we can spin,
-        this is because this value is the lowest we can go before it seizes.
         '''
         temp = self.sensor.get_value()
 
@@ -301,12 +299,7 @@ class Fan(LoggerMixin):
             return self.pwm_min
         if temp > self.sensor_max:
             return self.pwm_max
-        
-        return round(self.__calculate_remap(temp, self.sensor_min, self.sensor_max, self.pwm_stop, self.pwm_max))
-
-
-    def __calculate_remap(self, value, in_min, in_max, out_min, out_max):
-        return out_min + (float(value - in_min) / float(in_max - in_min)) * (out_max - out_min)
+        return round(remap_int(temp, self.sensor_min, self.sensor_max, self.pwm_min, self.pwm_max))
 
 
     def __str__(self):
