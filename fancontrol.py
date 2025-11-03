@@ -6,6 +6,8 @@ import os
 import time
 from lib import Settings, PACKAGE_VERSION
 from lib.logger import *
+from lib.exceptions import *
+from lib.sensor import RawSensor
 from pprint import pprint
 
 
@@ -62,7 +64,7 @@ class FanControl(LoggerMixin):
 
     def __setup_pwm(self):
         for i, (name, sensor) in enumerate(self.sensors.items()):
-            if type(sensor) is OutputSensor:
+            if type(sensor) is PWMSensor:
                 sensor.setup()
 
 
@@ -235,7 +237,7 @@ class FanControl(LoggerMixin):
                 device_path
             )
             self.sensors[device_path] = sensor
-            if sensor_class is OutputSensor:
+            if sensor_class is PWMSensor:
                 self.outputs[device_path] = sensor
             
         sensor.register_fan(fan)
@@ -293,7 +295,7 @@ class Fan(LoggerMixin):
         Note that we're counting pwm_stop as the lowest point we can spin,
         this is because this value is the lowest we can go before it seizes.
         '''
-        temp = self.sensor.read()
+        temp = self.sensor.get_value()
 
         if temp < self.sensor_min:
             return self.pwm_min
@@ -320,7 +322,7 @@ class Fan(LoggerMixin):
         self.enabled = self.settings.is_enabled(self.name, 'enabled')
 
         self.__get_attribute('device')
-        self.device = self.controller.create_sensor(self, self.device, OutputSensor)
+        self.device = self.controller.create_sensor(self, self.device, PWMSensor)
         self.log_verbose('{}.{} resolved to {}'.format(self, 'device', self.device))
 
         self.__get_attribute('sensor')
@@ -367,15 +369,12 @@ class Fan(LoggerMixin):
         setattr(self, attr, value)
 
 
-class Sensor(LoggerMixin):
+class Sensor(RawSensor, LoggerMixin):
     def __init__(self, controller, settings, logger, name, device_path):
+        super().__init__(logger, name, device_path)
         self.controller = controller
         self.settings = settings
-        self.logger = logger
-        self.name = name
-        self.device_path = device_path
         self.fans = []
-        self.__check_configuration()
 
 
     def update(self):
@@ -389,50 +388,16 @@ class Sensor(LoggerMixin):
             suitable startup value.
         '''
         try:
-            self.value = self.read_direct(self.device_path)
-            self.log_verbose('{} = {}'.format(self, self.get_value()))
-        except ValueError as e:
+            super().update()
+        except SensorException as e:
             self.log_error('{} could not be updated ({})'.format(self, str(e)))
-        except FileNotFoundError as e:
-            self.log_error('{} could not be updated ({})'.format(self, str(e)))
-
-
-    def read_direct(self, sensor_path):
-        with open(sensor_path, 'r') as file:
-            data = file.read()
-            return int(data)
-
-
-    def read(self):
-        '''
-        Returns the last read sensor value
-        '''
-        return self.value
-
-
-    def get_value(self):
-        '''
-        Returns the last read sensor value as a string, formatted for output
-        with relevant unit designation.
-        '''
-        return str(self.read())
 
 
     def register_fan(self, fan):
         self.fans.append(fan)
 
 
-    def __str__(self):
-        return '{}({})'.format(self.__class__.__name__, self.name)
-
-
-    def __check_configuration(self):
-        if not os.path.isfile(self.device_path):
-            raise ConfigurationError('{}.{} not found'.format(self, 'device_path'), self.device_path)
-        self.log_verbose('{}.{} input OK'.format(self, 'device_path', self.device_path))
-
-
-class OutputSensor(Sensor):
+class PWMSensor(Sensor):
     PWM_MIN = 0
     PWM_MAX = 255
     
@@ -538,11 +503,16 @@ class OutputSensor(Sensor):
 
 
     def __until_next_step(self, duration):
-        self.next_step = time.time() + duration
+        self.next_step_updated = time.time()
+        self.next_step = self.next_step_updated + duration
         return True
 
 
     def __at_next_step(self):
+        now = time.time()
+        if now < self.next_step_updated:
+            self.log_warning('Clock went backwards!')
+            return True
         return time.time() > self.next_step
 
 
@@ -591,7 +561,7 @@ class OutputSensor(Sensor):
     def __plan_from_running(self):
         self.log_verbose('{} is planning for running'.format(self))
 
-        self.last_value = self.read()
+        self.last_value = self.get_value()
         self.target_value = self.__get_max_request()
         if (self.target_value == 0):
             self.__new_state(self.STATE_STOPPING)
@@ -629,12 +599,12 @@ class OutputSensor(Sensor):
         # Guess state based on current value
         self.state = self.STATE_STOPPED
         for fan in self.fans:
-            if fan.pwm_input.read() > 0:
-                self.log_debug('{} detected spinning {} reading {}'.format(self, fan, fan.pwm_input.get_value()))
+            if fan.pwm_input.get_value() > 0:
+                self.log_debug('{} detected spinning {} reading {}'.format(self, fan, fan.pwm_input.get_value_str()))
                 self.state = self.STATE_RUNNING
                 break
         self.log_debug('{} state set to {}'.format(self, self.__pwm_state_str(self.state)))
-        self.last_value = self.read()
+        self.last_value = self.get_value()
         self.target_value = self.last_value
 
         self.read_original_enable()
@@ -670,12 +640,10 @@ class OutputSensor(Sensor):
 
 
     def __write(self, path, name, pwm_value, ignore_exceptions = False):
-        self.log_verbose('{} write {} to {}'.format(self, str(pwm_value), path))
+        self.log_verbose('{} writing {} to {}'.format(self, str(pwm_value), name))        
         try:
-            with open(path, 'w') as file:
-                file.write('{}'.format(str(pwm_value)))
-                return True
-        except (FileNotFoundError, PermissionError) as e:
+            return self.write(path, pwm_value)
+        except SensorException as e:
             if not ignore_exceptions:
                 raise RuntimeError('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
             self.log_warning('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
@@ -684,8 +652,8 @@ class OutputSensor(Sensor):
 
     def read_enable(self):
         try:
-            return self.read_direct(self.enable_path)
-        except (FileNotFoundError, ValueError) as e:
+            return self.read_int(self.enable_path)
+        except SensorException as e:
             raise RuntimeError('{} could not read {}_enable'.format(self, self.name))
 
 
@@ -742,11 +710,6 @@ class OutputSensor(Sensor):
                    default=self.PWM_MAX)
 
 
-    def __debug_requests(self):
-        for (requester, pwm_value) in self.requests:
-            self.log_verbose('Request for {} from {}'.format(str(pwm_value), requester))
-
-    
     def __check_configuration(self):
         if not os.path.isfile(self.enable_path):
             raise ConfigurationError('{}.{} not found'.format(self, 'enable_path'), self.enable_path)
@@ -758,14 +721,14 @@ class TemperatureSensor(Sensor):
         super().__init__(controller, settings, logger, name, device_path)
 
 
-    def read(self):
+    def get_value(self):
         if self.value == None:
             return None
         return self.value / 1000.0
     
 
-    def get_value(self):
-        return super().get_value() + "°C"
+    def get_value_str(self):
+        return super().get_value_str() + "°C"
 
 
 class FanSensor(Sensor):
@@ -773,26 +736,8 @@ class FanSensor(Sensor):
         super().__init__(controller, settings, logger, name, device_path)
 
     
-    def get_value(self):
-        return super().get_value() + " RPM"
-
-
-class ConfigurationError(Exception):
-    def __init__(self, message, details = None):
-        if details:
-            super().__init__(Logger.to_key_value(message, details))
-        else:
-            super().__init__(message)
-
-
-class RuntimeError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-        self.message = message
-
-
-    def __str__(self):
-        return '{}({})'.format(self.__class__.__name__, self.message)
+    def get_value_str(self):
+        return super().get_value_str() + " RPM"
 
 
 def is_config(config_path):
