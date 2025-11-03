@@ -266,7 +266,7 @@ class Fan(LoggerMixin):
         self.device.request_value(self, self.__calculate())
 
 
-    def shutdown(self, ignore_exceptions = False):
+    def shutdown(self, ignore_exceptions=False):
         '''
         Called by FanControl when shutting down. As we don't really know
         anything about the underlying hardware at this level we'll just
