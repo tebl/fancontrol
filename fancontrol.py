@@ -9,6 +9,7 @@ from lib.logger import *
 from lib.exceptions import *
 from lib.sensor import RawSensor
 from lib.utils import remap_int
+from lib.scheduler import MicroScheduler
 from pprint import pprint
 
 
@@ -24,15 +25,16 @@ class FanControl(LoggerMixin):
 
     def control(self):
         self.running = True
+        self.scheduler = MicroScheduler(self.logger, self.delay)
 
         self.log_info('{} starting'.format(self))
         self.__setup()
         while self.running:
             try:
-                self.next_tick = time.time() + self.delay
+                self.scheduler.set_next()
                 self.__control()
 
-                while self.running and time.time() < self.next_tick:
+                while self.running and not self.scheduler.was_passed():
                     time.sleep(.3)
                     self.__u_control()
             except KeyboardInterrupt:
@@ -131,6 +133,7 @@ class FanControl(LoggerMixin):
 
 
     def set_logger(self, logger):
+        self.scheduler.set_logger(logger)
         for fan in self.fans:
             fan.set_logger(logger)
         for i, (name, sensor) in enumerate(self.sensors.items()):
@@ -436,7 +439,7 @@ class PWMSensor(Sensor):
 
         self.last_value = 0
         self.target_value = 0
-        self.next_step = None
+        self.scheduler = None
 
         self.__check_configuration()
 
@@ -468,20 +471,22 @@ class PWMSensor(Sensor):
 
     
     def __tick_from_starting(self, step_delay = 2):
-        if self.next_step == None:
-            return self.__until_next_step(step_delay)
+        if self.scheduler == None:
+            self.scheduler = MicroScheduler(self.logger, step_delay)
+            return self.scheduler.set_next()
         
-        if self.__at_next_step():
+        if self.scheduler.was_passed():
             # Timer ran out, assume it started instead of doing sensibly things
             # like checking.
             self.__new_state(self.STATE_RUNNING)
 
 
     def __tick_from_stopping(self, step_delay = .5):
-        if self.next_step == None:
-            return self.__until_next_step(step_delay)
+        if self.scheduler == None:
+            self.scheduler = MicroScheduler(self.logger, step_delay)
+            return self.scheduler.set_next()
 
-        if self.__at_next_step():
+        if self.scheduler.was_passed():
             if self.last_value == self.target_value:
                 return self.__new_state(self.STATE_STOPPED)
             
@@ -489,22 +494,23 @@ class PWMSensor(Sensor):
             self.log_verbose('{} stepping from {} to {} towards {}'.format(self, str(self.last_value), str(next_value), str(self.target_value)))
             self.last_value = next_value
             self.__write(self.device_path, self.name, self.last_value)
-            return self.__until_next_step(step_delay)
+            return self.scheduler.set_next()
 
 
     def __tick_from_running(self, step_delay = .5):
-        if self.next_step == None:
-            return self.__until_next_step(step_delay)
+        if self.scheduler == None:
+            self.scheduler = MicroScheduler(self.logger, step_delay)
+            return self.scheduler.set_next()
 
-        if self.__at_next_step():
+        if self.scheduler.was_passed():
             if self.last_value == self.target_value:
-                return self.__until_next_step(step_delay)
+                return self.scheduler.set_next()
             
             next_value = self.__next_step_value()
             self.log_verbose('{} stepping from {} to {} towards {}'.format(self, str(self.last_value), str(next_value), str(self.target_value)))
             self.last_value = next_value
             self.__write(self.device_path, self.name, self.last_value)
-            return self.__until_next_step(step_delay)
+            return self.scheduler.set_next()
 
 
     def __next_step_value(self, pwm_steps = 10):
@@ -515,24 +521,10 @@ class PWMSensor(Sensor):
         return self.last_value
 
 
-    def __until_next_step(self, duration):
-        self.next_step_updated = time.time()
-        self.next_step = self.next_step_updated + duration
-        return True
-
-
-    def __at_next_step(self):
-        now = time.time()
-        if now < self.next_step_updated:
-            self.log_warning('Clock went backwards!')
-            return True
-        return time.time() > self.next_step
-
-
     def __new_state(self, new_state):
         self.log_debug('{} setting new state {}'.format(self, self.__pwm_state_str(new_state)))
         self.state = new_state
-        self.next_step = None
+        self.scheduler = None
 
 
     def plan_ahead(self):
