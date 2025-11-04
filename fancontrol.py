@@ -274,7 +274,7 @@ class Fan(LoggerMixin):
         request that the fan be put on the hardware level and hope that
         the OutputSensor-class knows how to make better decisions.
         '''
-        self.device.request_value(self, self.pwm_max)
+        self.device.request_value(self, self.__to_request(self.pwm_max, self.pwm_max))
 
 
     def update(self):
@@ -283,6 +283,9 @@ class Fan(LoggerMixin):
         it - immediately after updating sensors. At this point we're not
         writing any values directly, instead we're evaluating the current
         state and then requesting what we consider to be the next step.
+
+        A negative value indicates that the fan should have been spinning,
+        but isn't - the actual value is the value needed to spin it up again.
         '''
         self.device.request_value(self, self.__calculate())
 
@@ -295,11 +298,28 @@ class Fan(LoggerMixin):
         '''
         temp = self.sensor.get_value()
 
-        if temp < self.sensor_min:
-            return self.pwm_min
-        if temp > self.sensor_max:
-            return self.pwm_max
-        return round(remap_int(temp, self.sensor_min, self.sensor_max, self.pwm_min, self.pwm_max))
+        pwm_value = self.pwm_min
+        if temp <= self.sensor_min:
+            pwm_value = self.pwm_min
+        elif temp >= self.sensor_max:
+            pwm_value = self.pwm_max
+        else:
+            pwm_value = round((temp - self.sensor_min) * 
+                              (self.pwm_max - self.pwm_stop) /
+                              (self.sensor_max - self.sensor_min) +
+                              self.pwm_stop)
+
+        # Check if the fan appears to have stopped. While ideally the above
+        # calculation should keep the PWM-value above the level at which
+        # the fan would physically seize, writing expression like this would
+        # make it bit more clearer.
+        if pwm_value > self.pwm_stop and self.pwm_input.get_value() == 0:
+            return self.__to_request(self.pwm_start, pwm_value)
+        return self.__to_request(pwm_value, pwm_value)
+
+
+    def __to_request(self, requested, target):
+        return [requested, target]
 
 
     def __str__(self):
@@ -531,16 +551,25 @@ class PWMSensor(Sensor):
 
 
     def __plan_from_stopped(self):
-        max_value = max(
-            [pwm_value for (requester, pwm_value) in self.requests], 
-            default=self.PWM_MAX
-        )
-        max_start = max(
-            [requester.pwm_start for (requester, pwm_value) in self.requests], 
-            default=self.PWM_MAX
-        )
-        if max_value > self.PWM_MIN:
-            self.__set_starting(max_start, max_value)
+        '''
+        A request is composed of two values; the first one is the value
+        requested by the fan in order to get it spinning, or it is equal to
+        the second. The second is the target value that we want to be at when
+        stabilized.
+        '''
+        max_value = self.PWM_MIN
+        max_target = self.PWM_MIN
+        for (requester, values) in self.requests:
+            requested, target = values
+            largest = max(values)
+            if largest > max_value:
+                max_value = largest
+            if target > max_target:
+                max_target = target
+
+        # The second part should not be needed, but kept for clarity.
+        if max_value > 0 or max_target > 0:
+            self.__set_starting(max_value, max_target)
         self.__discard_requests(warn_dropped=False)
 
 
@@ -553,7 +582,6 @@ class PWMSensor(Sensor):
 
     def __plan_from_running(self):
         self.log_verbose('{} is planning for running'.format(self))
-
         self.last_value = self.get_value()
         self.target_value = self.__get_max_request()
         if (self.target_value == 0):
@@ -562,14 +590,15 @@ class PWMSensor(Sensor):
         self.__discard_requests(warn_dropped=False)
 
 
-    def request_value(self, requester, pwm_value):
+    def request_value(self, requester, values):
         '''
         Called by fans in order to request a value, but at this point we're not
         actually doing anything except logging the request. Values will be only
         get updated when called by FanControl (see perform_update).
         '''
-        self.log_verbose('{} requested {} from {}'.format(requester, str(pwm_value), self))
-        self.requests.append((requester, pwm_value))
+        requested, target = values
+        self.log_verbose('{} requested {} from {}'.format(requester, max(values), self))
+        self.requests.append((requester, values))
 
 
     def __discard_requests(self, warn_dropped = True):
@@ -699,8 +728,13 @@ class PWMSensor(Sensor):
         Get maximum from requested values, this ensures that we all always have
         sufficient power when controlling multiple fans.
         '''
-        return max([pwm_value for (requester, pwm_value) in self.requests], 
-                   default=self.PWM_MAX)
+        return max([max(values) for (requester, values) in self.requests], default=self.PWM_MIN)
+        # max_value = self.PWM_MIN
+        # for (requester, values) in self.requests:
+        #     largest = max(values)
+        #     if largest > max_value:
+        #         max_value = largest
+        # return max_value
 
 
     def __check_configuration(self):
