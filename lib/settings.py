@@ -1,7 +1,7 @@
 import os
 from configparser import ConfigParser
 from .logger import Logger, LoggerMixin
-from pprint import pprint
+
 
 class Settings(LoggerMixin):
     DEFAULT_LOG_LEVEL = Logger.INFO

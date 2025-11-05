@@ -2,5 +2,9 @@ from .logger import Logger, ConsoleLogger
 from .settings import Settings
 from .exceptions import *
 from .sensor import RawSensor
+from . import utils
 
-PACKAGE_VERSION = 'py_fancontrol 1.0'
+
+PACKAGE_NAME = 'fancontrol'
+PACKAGE_VERSION = '1.0'
+PACKAGE = '{} {}'.format(PACKAGE_NAME, '1.0')

@@ -3,7 +3,7 @@
 import sys
 import argparse
 import os
-from lib import Settings, PACKAGE_VERSION
+from lib import Settings, PACKAGE, PACKAGE_NAME
 from lib.logger import *
 
 
@@ -166,19 +166,19 @@ def main():
     '''
     parser.add_argument('-c', '--config-path', type=is_ini, default='fancontrol.ini', help='Specify configuration')
     parser.add_argument('-i', '--import-path', type=is_config, default="/etc/fancontrol", help='Specify configuration')
-    parser.add_argument('-v', '--version', action='version', version=PACKAGE_VERSION, help="Show version information")
+    parser.add_argument('-v', '--version', action='version', version=PACKAGE, help="Show version information")
     parser.add_argument('--replace', action='store_true', help="Replaces configuration")
     args = parser.parse_args()
 
-    logger = ConsoleLogger()
+    logger = ConsoleLogger(PACKAGE_NAME)
 
     if os.path.isfile(args.config_path) and not args.replace:
-        logger.log(Logger.to_key_value('Configuration path already exists', args.config_path), Logger.ERROR)
+        logger.log(utils.to_keypair_str('Configuration path already exists', args.config_path), Logger.ERROR)
         sys.exit(1) 
 
     config_tmp = args.config_path + '.tmp'
     if (os.path.isfile(config_tmp)):
-        logger.log(Logger.to_key_value('Removing temporary configuration', config_tmp), Logger.WARNING)
+        logger.log(utils.to_keypair_str('Removing temporary configuration', config_tmp), Logger.WARNING)
         os.remove(config_tmp)
 
     settings = Settings(config_tmp, logger)

@@ -4,7 +4,7 @@ import sys
 import argparse
 import os
 import time
-from lib import Settings, PACKAGE_VERSION
+from lib import Settings, PACKAGE, PACKAGE_NAME, utils
 from lib.logger import *
 from lib.exceptions import *
 from lib.sensor import RawSensor
@@ -765,9 +765,9 @@ def is_config(config_path):
     right extension, but beyond that we're not looking at the contents of it.
     '''
     if not os.path.isfile(config_path):
-        raise argparse.ArgumentError(Logger.to_key_value('No suitable file specified', config_path))
+        raise argparse.ArgumentError(utils.to_keypair_str('No suitable file specified', config_path))
     if not config_path.lower().endswith(('.ini')):
-        raise argparse.ArgumentError(Logger.to_key_value('Unknown extension specified', config_path))
+        raise argparse.ArgumentError(utils.to_keypair_str('Unknown extension specified', config_path))
     return config_path
 
 
@@ -781,7 +781,7 @@ def perform_verify(run_verify, logger, settings):
         return False
 
     try:
-        logger.log(PACKAGE_VERSION)
+        logger.log(PACKAGE)
         FanControl(settings, logger)
         logger.log('OK.')
     except ConfigurationError as e:
@@ -794,11 +794,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.description = 'Python fancontrol, spinning fans in the 21st century'
     parser.add_argument('-c', '--config-path', type=is_config, default='fancontrol.ini', help='Specify configuration')
-    parser.add_argument('-v', '--version', action='version', version=PACKAGE_VERSION, help="Show version information")
+    parser.add_argument('-v', '--version', action='version', version=PACKAGE, help="Show version information")
     parser.add_argument('--verify', action='store_true', help='Fancontrol will load and check configuration before exiting')
     args = parser.parse_args()
 
-    logger = ConsoleLogger()
+    logger = ConsoleLogger(PACKAGE_NAME)
     settings = Settings(args.config_path, logger)
 
     # If we're only running a verification of the configuration
@@ -807,7 +807,7 @@ def main():
 
     # From this point on the assumption is that we are no longer running
     # interactively. First step is to switch to a more suitable logger.
-    logger = LogfileLogger(settings.log_level)
+    logger = JournalLogger(PACKAGE_NAME, settings.log_level)
     logger.log('Initialized ' + str(logger), Logger.DEBUG)
 
     try:

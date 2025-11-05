@@ -2,6 +2,7 @@ import os.path
 from .logger import LoggerMixin
 from .exceptions import SensorException, ConfigurationError
 
+
 class RawSensor(LoggerMixin):
     def __init__(self, logger, name, device_path):
         self.logger = logger
