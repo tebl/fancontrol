@@ -30,20 +30,25 @@ class FanControl(LoggerMixin):
         self.log_info('{} starting'.format(self))
         self.__setup()
         while self.running:
-            if interrupt_handler.interrupted:
-                self.running = False
-
             try:
                 self.scheduler.set_next()
                 self.__control()
 
                 while self.running and not self.scheduler.was_passed():
-                    time.sleep(.3)
-                    self.__u_control()
+                    if self.check_interrupt(interrupt_handler):
+                        time.sleep(.3)
+                        self.__u_control()
             except KeyboardInterrupt:
                 self.running = False
         self.__shutdown()
         self.log_info('{} stopped'.format(self))
+
+
+    def check_interrupt(self, handler):
+        if handler.interrupted:
+            self.log_warning('{} INT received, halting...'.format(self))
+            self.running = False
+        return self.running
 
 
     def __setup(self):
@@ -724,12 +729,6 @@ class PWMSensor(Sensor):
         sufficient power when controlling multiple fans.
         '''
         return max([max(values) for (requester, values) in self.requests], default=self.PWM_MIN)
-        # max_value = self.PWM_MIN
-        # for (requester, values) in self.requests:
-        #     largest = max(values)
-        #     if largest > max_value:
-        #         max_value = largest
-        # return max_value
 
 
     def __check_configuration(self):

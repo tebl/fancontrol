@@ -18,6 +18,7 @@ class InterruptHandler(object):
         signal.signal(self.signal_type, handler)
         return self
 
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.release()
 
