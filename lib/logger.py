@@ -167,6 +167,28 @@ class ConsoleLogger(FormattedLogger):
         return super().format_logline(message, log_level)
 
 
+class InteractiveLogger(ConsoleLogger):
+    '''
+    Similar to ConsoleLogger except we're only relying on colorized output to
+    tell entries apart.
+    '''
+
+
+    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
+        super().__init__(log_name, filter_level, formatter)
+
+
+    def format_logline(self, message, log_level):
+        '''
+        Ensures that we can tell things apart before logging them, if we're not
+        sure we use ConsoleLogger function to ensure that we're adding tags
+        instead.
+        '''
+        if self.formatter and not self.formatter.is_monochrome:
+            return self.format_ansi(message, log_level)
+        return super().format_logline(message, log_level)
+
+
 class LogfileLogger(FormattedLogger):
     '''
     Placeholder until we can put something real in here, so for now let's just
@@ -215,9 +237,9 @@ class ANSIFormatter:
             
     
     def set_features(self, features):
-        self.monochrome = (features == self.MONOCHROME)
-        self.use_16 = (features == self.BASIC) and not self.monochrome
-        self.use_256 = (features == self.EXPANDED) and not self.monochrome
+        self.is_monochrome = (features == self.MONOCHROME)
+        self.use_16 = (features == self.BASIC) and not self.is_monochrome
+        self.use_256 = (features == self.EXPANDED) and not self.is_monochrome
 
 
     def ansi_code(self, code):
@@ -261,13 +283,13 @@ class ANSIFormatter:
     def in_verbose(self, str):
         if self.use_256:
             return self.ansi_wrap(self.fg_colour_256(242), str)
-        return self.ansi_wrap(self.fg_colour(self.COLOUR_WHITE), str)
+        return self.ansi_wrap([2, self.fg_colour(self.COLOUR_BLACK)], str)
 
 
     def in_debug(self, str):
         if self.use_256:
             return self.ansi_wrap(self.fg_colour_256(248), str)
-        return self.ansi_wrap(self.fg_colour(self.COLOUR_WHITE), str)
+        return self.ansi_wrap([2, self.fg_colour(self.COLOUR_BLACK)], str)
 
 
     def in_info(self, str):
@@ -289,7 +311,7 @@ class ANSIFormatter:
 
 
     def get_for(self, log_level):
-        if self.monochrome:
+        if self.is_monochrome:
             return self.in_regular
 
         if log_level >= Logger.VERBOSE:

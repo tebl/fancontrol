@@ -47,7 +47,7 @@ class PWMImport(LoggerMixin):
 
 
     def __log_import(self, value, *args):
-        self.log_info('.'.join(args) + '=' + value)
+        self.log_debug('.'.join(args) + '=' + value)
 
 
     def __import_key(self, dev_base, key, line):
@@ -158,6 +158,20 @@ def is_config(config_path):
     return config_path
 
 
+def get_logger(args):
+    logger = InteractiveLogger(PACKAGE_NAME, filter_level=Logger.DEBUG)
+
+    if isinstance(logger, FormattedLogger):
+        features = ANSIFormatter.EXPANDED
+        if args.monochrome:
+            features = ANSIFormatter.MONOCHROME
+        elif args.less_colours:
+            features = ANSIFormatter.BASIC
+        logger.set_formatter(ANSIFormatter(features))
+
+    return logger
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.description = '''
@@ -168,9 +182,12 @@ def main():
     parser.add_argument('-i', '--import-path', type=is_config, default="/etc/fancontrol", help='Specify configuration')
     parser.add_argument('-v', '--version', action='version', version=PACKAGE, help="Show version information")
     parser.add_argument('--replace', action='store_true', help="Replaces configuration")
+    parser_colorization = parser.add_mutually_exclusive_group()
+    parser_colorization.add_argument('--monochrome', action='store_true', help='Remove colorization from output')
+    parser_colorization.add_argument('--less-colours', action='store_true', help='Limit colorization to 16 colours')
     args = parser.parse_args()
 
-    logger = ConsoleLogger(PACKAGE_NAME)
+    logger = get_logger(args)
 
     if os.path.isfile(args.config_path) and not args.replace:
         logger.log(utils.to_keypair_str('Configuration path already exists', args.config_path), Logger.ERROR)
