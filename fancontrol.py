@@ -7,10 +7,9 @@ import time
 from lib import Settings, PACKAGE, PACKAGE_NAME, utils
 from lib.logger import *
 from lib.exceptions import *
+from lib.pid_file import PIDFile
 from lib.sensor import RawSensor
-from lib.utils import remap_int
 from lib.scheduler import MicroScheduler
-from pprint import pprint
 
 
 class FanControl(LoggerMixin):
@@ -771,6 +770,16 @@ def is_config(config_path):
     return config_path
 
 
+def is_pid(pid_path):
+    '''
+    Check that the specified configuration file actually exists and has the
+    right extension, but beyond that we're not looking at the contents of it.
+    '''
+    if not pid_path.lower().endswith(('.pid')):
+        raise argparse.ArgumentError(utils.to_keypair_str('Unknown extension specified', pid_path))
+    return pid_path
+
+
 def perform_verify(run_verify, logger, settings):
     '''
     Loads up the configuration then returns, this hopefully will allow us to
@@ -790,31 +799,90 @@ def perform_verify(run_verify, logger, settings):
     return True
 
 
+def get_filter_level(setting, set_debug, set_verbose):
+    levels = [ Logger.to_filter_value(setting) ]
+    if set_debug:
+        levels.append(Logger.DEBUG)
+    if set_verbose:
+        levels.append(Logger.VERBOSE)
+    return max(levels)
+
+
+def reconfigure_logger(args, logger, filter_level, settings):
+    if args.log_console:
+        logger.set_filter(filter_level)
+    elif args.log_journal:
+        logger = JournalLogger(PACKAGE_NAME, filter_level)
+    elif args.log_logformat:
+        logger = LogfileLogger(PACKAGE_NAME, filter_level)
+    else:
+        match settings.log_using:
+            case Logger.JOURNAL:
+                logger = JournalLogger(PACKAGE_NAME, filter_level)
+            case Logger.LOG_FILE:
+                logger = LogfileLogger(PACKAGE_NAME, filter_level)
+            case Logger.CONSOLE:
+                logger.set_filter(filter_level)
+            case _:
+                logger.log(utils.to_keypair_str('Encountered unknown logger value', settings.log_using), Logger.WARNING)
+
+    if isinstance(logger, FormattedLogger):
+        features = settings.log_formatter
+        if args.monochrome:
+            features = ANSIFormatter.MONOCHROME
+        if args.less_colours:
+            features = ANSIFormatter.BASIC
+        if args.more_colours:
+            features = ANSIFormatter.EXPANDED
+        logger.set_formatter(ANSIFormatter(features))
+
+    return logger
+
+
+def get_logger(logger, args, settings):
+    filter_level = get_filter_level(settings.log_level, args.debug, args.verbose)
+    logger = reconfigure_logger(args, logger, filter_level, settings)
+    logger.log('Initialized ' + str(logger), Logger.DEBUG)
+    return logger
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.description = 'Python fancontrol, spinning fans in the 21st century'
     parser.add_argument('-c', '--config-path', type=is_config, default='fancontrol.ini', help='Specify configuration')
     parser.add_argument('-v', '--version', action='version', version=PACKAGE, help="Show version information")
+    parser.add_argument('--pid-file', type=is_pid, default='fancontrol.pid', help='Specify pid path')
+    parser.add_argument('-z', '--zap-pid', action='store_true', help='Remove pid if it exists')
     parser.add_argument('--verify', action='store_true', help='Fancontrol will load and check configuration before exiting')
+    parser_logging = parser.add_mutually_exclusive_group()
+    parser_logging.add_argument('--log-console', action='store_true', help='Fancontrol will only log to console')
+    parser_logging.add_argument('--log-logformat', action='store_true', help='Logs are printed, but now in with timestamps')
+    parser_logging.add_argument('--log-journal', action='store_true', help='Logs are sent to systemd-journal')
+    parser.add_argument('--debug', action='store_true', help='Enable debug messages')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose debug messages')
+    parser_colorization = parser.add_mutually_exclusive_group()
+    parser_colorization.add_argument('--monochrome', action='store_true', help='Remove colorization from output')
+    parser_colorization.add_argument('--less-colours', action='store_true', help='Limit colorization to 16 colours')
+    parser_colorization.add_argument('--more-colours', action='store_true', help='Allow colorization to use 256 colours')
     args = parser.parse_args()
 
-    logger = ConsoleLogger(PACKAGE_NAME)
-    settings = Settings(args.config_path, logger)
-
-    # If we're only running a verification of the configuration
-    if perform_verify(args.verify, logger, settings):
-        sys.exit(0)
-
-    # From this point on the assumption is that we are no longer running
-    # interactively. First step is to switch to a more suitable logger.
-    logger = JournalLogger(PACKAGE_NAME, settings.log_level)
-    logger.log('Initialized ' + str(logger), Logger.DEBUG)
-
     try:
-        fancontrol = FanControl(settings, logger)
-        fancontrol.control()
-    except ConfigurationError as e:
-        logger.log(str(e), Logger.ERROR)
+        current_logger = ConsoleLogger(PACKAGE_NAME)
+        settings = Settings(args.config_path, current_logger)
+
+        # If we're only running a verification of the configuration
+        if perform_verify(args.verify, current_logger, settings):
+            sys.exit(0)
+
+        # From this point on the assumption is that we are no longer running
+        # interactively. First step is to switch to a more suitable logger.
+        current_logger = get_logger(current_logger, args, settings)
+
+        with PIDFile(current_logger, args.pid_file, zap_if_exists=args.zap_pid):
+            fancontrol = FanControl(settings, current_logger)
+            fancontrol.control()
+    except ControlException as e:
+        current_logger.log(str(e), Logger.ERROR)
         sys.exit(1)
 
 

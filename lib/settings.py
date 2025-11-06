@@ -1,10 +1,14 @@
 import os
 from configparser import ConfigParser
-from .logger import Logger, LoggerMixin
+from .logger import Logger, LoggerMixin, ANSIFormatter
+from .exceptions import ConfigurationError
 
 
 class Settings(LoggerMixin):
     DEFAULT_LOG_LEVEL = Logger.INFO
+    DEFAULT_LOGGER = Logger.CONSOLE
+    DEFAULT_LOG_FORMATTER = ANSIFormatter.BASIC
+
     DEFAULT_DELAY = 10
     DEFAULT_ERROR_ON_EMPTY = 'yes'
 
@@ -39,6 +43,8 @@ class Settings(LoggerMixin):
         if os.path.isfile(self.config_path):
             self.config.read(self.config_path)
         self.__restore_key('Settings','log_level', Logger.to_filter_level(Settings.DEFAULT_LOG_LEVEL))
+        self.__restore_key('Settings','log_using', Settings.DEFAULT_LOGGER)
+        self.__restore_key('Settings','log_formatter', Settings.DEFAULT_LOG_FORMATTER)
         self.__restore_key('Settings','delay', str(Settings.DEFAULT_DELAY))
         self.__restore_key('Settings','error_on_empty', Settings.DEFAULT_ERROR_ON_EMPTY)
 
@@ -111,7 +117,11 @@ class Settings(LoggerMixin):
             self.config[section][key] = default
         else:
             value = self.get(section, key)
-            if (value != default):
-                match [section, key]:
-                    case ['Settings', 'log_level']:
+            match [section, key]:
+                case ['Settings', 'log_formatter']:
+                    if value not in ANSIFormatter.ALLOWED:
+                        raise ConfigurationError('log_formatter not recognized (current: {} valid: {})'.format(value, '|'.join(ANSIFormatter.ALLOWED)))
+
+                case ['Settings', 'log_level']:
+                    if value != default:
                         self.configure_logger(value)

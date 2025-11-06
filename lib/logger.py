@@ -11,6 +11,10 @@ class Logger:
     DEBUG = 75
     VERBOSE = 100
 
+    CONSOLE = 'CONSOLE'
+    JOURNAL = 'JOURNAL'
+    LOG_FILE = 'LOG'
+
 
     def __init__(self, log_name, filter_level = INFO):
         self.log_name = log_name
@@ -82,7 +86,37 @@ class Logger:
         return filter_level
 
 
-class ConsoleLogger(Logger):
+class FormattedLogger(Logger):
+    '''
+    '''
+
+
+    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
+        self.formatter = formatter
+        super().__init__(log_name, filter_level)
+
+
+    def set_formatter(self, formatter):
+        self.formatter = formatter
+
+
+    def format_logline(self, message, log_level):
+        message = super().format_logline(message, log_level)
+        return self.format_ansi(message, log_level)
+
+
+    def format_ansi(self, message, log_level):
+        if not self.formatter:
+            return message
+        
+        format_func = self.formatter.get_for(log_level)
+        if not format_func:
+            return message
+        
+        return format_func(message)
+
+
+class ConsoleLogger(FormattedLogger):
     '''
     Intended for when scripts are running interactively. The difference from
     the base logger is that we'll omit printing the log_level when it matches
@@ -91,8 +125,8 @@ class ConsoleLogger(Logger):
     '''
 
 
-    def __init__(self, log_name, filter_level=Logger.INFO):
-        super().__init__(log_name, filter_level)
+    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
+        super().__init__(log_name, filter_level, formatter)
 
 
     def set_filter(self, filter_level):
@@ -106,11 +140,146 @@ class ConsoleLogger(Logger):
         return super().set_filter(filter_level)
 
 
-    def log(self, message, log_level = Logger.INFO):
+    def format_logline(self, message, log_level):
         if log_level == Logger.INFO:
-            print(message)
-            return
-        super().log(message, log_level)
+            return self.format_ansi(message, log_level)
+        return super().format_logline(message, log_level)
+
+
+class LogfileLogger(FormattedLogger):
+    '''
+    Placeholder until we can put something real in here, so for now let's just
+    pretend this is here so that you'd have a nicely formatted file when output
+    is redirected somewhere.
+    '''
+
+    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
+        super().__init__(log_name, filter_level, formatter)
+
+
+    def log(self, message, log_level):
+        if self.should_log(log_level):
+            print('{} {}: {}'.format(
+                    self.get_timestamp(),
+                    self.log_name, 
+                    self.format_logline(message, log_level)
+                )
+            )
+
+
+class ANSIFormatter:
+    MONOCHROME = "MONO"
+    BASIC = "BASIC"
+    EXPANDED = "EXPANDED"
+    ALLOWED = [ MONOCHROME, BASIC, EXPANDED ]
+
+    FG_BASE = 30
+    FG_BRIGHT = 90
+
+    BG_BASE = 40
+    BG_BRIGHT = 100
+
+    COLOUR_BLACK = 0
+    COLOUR_RED = 1
+    COLOUR_GREEN = 2
+    COLOUR_YELLOW = 3
+    COLOUR_BLUE = 4
+    COLOUR_MAGENTA = 5
+    COLOUR_CYAN = 6
+    COLOUR_WHITE = 7
+
+
+    def __init__(self, features=BASIC):
+        self.set_features(features)
+            
+    
+    def set_features(self, features):
+        self.monochrome = (features == self.MONOCHROME)
+        self.use_16 = (features == self.BASIC) and not self.monochrome
+        self.use_256 = (features == self.EXPANDED) and not self.monochrome
+
+
+    def ansi_code(self, code):
+        if type(code) is list:
+            code = ';'.join([str(v) for v in code])
+        return '\x1b[' + str(code) +'m'
+
+
+    def ansi_wrap(self, codes, text):
+        return self.ansi_code(codes) + text + self.ansi_code(0)
+
+
+    def colour(self, base, offset):
+        return base + offset
+    
+
+    def fg_colour(self, offset, bright=False):
+        if bright:
+            return self.colour(self.FG_BASE, offset)
+        return self.colour(self.FG_BRIGHT, offset)
+
+
+    def bg_colour(self, offset, bright=False):
+        if bright:
+            return self.colour(self.BG_BASE, offset)
+        return self.colour(self.BG_BRIGHT, offset)
+
+
+    def fg_colour_256(self, colour_number):
+        return [38, 5, colour_number]
+
+
+    def bg_colour_256(self, colour_number):
+        return [48, 5, colour_number]
+
+
+    def in_regular(self, str):
+        return str
+
+
+    def in_verbose(self, str):
+        if self.use_256:
+            return self.ansi_wrap(self.fg_colour_256(242), str)
+        return self.ansi_wrap(self.fg_colour(self.COLOUR_WHITE), str)
+
+
+    def in_debug(self, str):
+        if self.use_256:
+            return self.ansi_wrap(self.fg_colour_256(248), str)
+        return self.ansi_wrap(self.fg_colour(self.COLOUR_WHITE), str)
+
+
+    def in_info(self, str):
+        if self.use_256:
+            return self.ansi_wrap(self.fg_colour_256(255), str)
+        return self.ansi_wrap(self.fg_colour(self.COLOUR_WHITE), str)
+
+
+    def in_warning(self, str):
+        if self.use_256:
+            return self.ansi_wrap(self.fg_colour_256(220), str)
+        return self.ansi_wrap(self.fg_colour(self.COLOUR_YELLOW), str)
+
+
+    def in_error(self, str):
+        if self.use_256:
+            return self.ansi_wrap(self.fg_colour_256(160), str)
+        return self.ansi_wrap(self.fg_colour(self.COLOUR_RED), str)
+
+
+    def get_for(self, log_level):
+        if self.monochrome:
+            return self.in_regular
+
+        if log_level >= Logger.VERBOSE:
+            return self.in_verbose
+        elif log_level >= Logger.DEBUG:
+            return self.in_debug
+        elif log_level >= Logger.INFO:
+            return self.in_info
+        elif log_level >= Logger.WARNING:
+            return self.in_warning
+        return self.in_error
 
 
 class JournalLogger(Logger):
@@ -155,27 +324,6 @@ class JournalLogger(Logger):
 
     def format_logline(self, message, log_level):
         return '[{}] {}'.format(Logger.to_filter_level(log_level), message)
-
-
-class LogfileLogger(Logger):
-    '''
-    Placeholder until we can put something real in here, so for now let's just
-    pretend this is here so that you'd have a nicely formatted file when output
-    is redirected somewhere.
-    '''
-
-    def __init__(self, log_name, filter_level=Logger.INFO):
-        super().__init__(log_name, filter_level)
-
-
-    def log(self, message, log_level):
-        if self.should_log(log_level):
-            print('{} {}: {}'.format(
-                    self.get_timestamp(),
-                    self.log_name, 
-                    self.format_logline(message, log_level)
-                )
-            )
 
 
 class LoggerMixin:
