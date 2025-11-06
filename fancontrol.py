@@ -7,6 +7,7 @@ import time
 from lib import Settings, PACKAGE, PACKAGE_NAME, utils
 from lib.logger import *
 from lib.exceptions import *
+from lib.interrupt import InterruptHandler
 from lib.pid_file import PIDFile
 from lib.sensor import RawSensor
 from lib.scheduler import MicroScheduler
@@ -22,13 +23,16 @@ class FanControl(LoggerMixin):
         self.running = False
 
 
-    def control(self):
+    def control(self, interrupt_handler):
         self.running = True
         self.scheduler = MicroScheduler(self.logger, self.delay)
 
         self.log_info('{} starting'.format(self))
         self.__setup()
         while self.running:
+            if interrupt_handler.interrupted:
+                self.running = False
+
             try:
                 self.scheduler.set_next()
                 self.__control()
@@ -880,7 +884,8 @@ def main():
 
         with PIDFile(current_logger, args.pid_file, zap_if_exists=args.zap_pid):
             fancontrol = FanControl(settings, current_logger)
-            fancontrol.control()
+            with InterruptHandler() as handler:
+                fancontrol.control(handler)
     except ControlException as e:
         current_logger.log(str(e), Logger.ERROR)
         sys.exit(1)
