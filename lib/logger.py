@@ -11,9 +11,17 @@ class Logger:
     DEBUG = 75
     VERBOSE = 100
 
+    STR_ERROR = 'ERROR'
+    STR_WARNING = 'WARNING'
+    STR_INFO = 'INFO'
+    STR_DEBUG = 'DEBUG'
+    STR_VERBOSE = 'VERBOSE'
+    LEVELS = [ STR_ERROR, STR_WARNING, STR_INFO, STR_DEBUG, STR_VERBOSE]
+
     CONSOLE = 'CONSOLE'
     JOURNAL = 'JOURNAL'
     LOG_FILE = 'LOG'
+    OUTPUTS = [ CONSOLE, JOURNAL, LOG_FILE ]
 
 
     def __init__(self, log_name, filter_level = INFO):
@@ -57,37 +65,50 @@ class Logger:
 
 
     def to_filter_level(log_level):
+        '''
+        Used when we want to print the filter level as part of a log somewhere,
+        but there may be some accuracy lost in the conversion.
+        '''
         if log_level >= Logger.VERBOSE:
-            return 'VERBOSE'
+            return Logger.STR_VERBOSE
         elif log_level >= Logger.DEBUG:
-            return 'DEBUG'
+            return Logger.STR_DEBUG
         elif log_level >= Logger.INFO:
-            return 'INFO'
+            return Logger.STR_INFO
         elif log_level >= Logger.WARNING:
-            return 'WARNING'
-        return 'ERROR'
+            return Logger.STR_WARNING
+        return Logger.STR_ERROR
 
 
     def to_filter_value(filter_level):
+        '''
+        Used when parsing filter_level as specified in settings, basically a
+        string that we need to convert back to its numeric value. Or it's
+        already a number and we try convert that back to an int.
+        '''
         if isinstance(filter_level, str):
             match filter_level:
-                case 'ERROR':
+                case Logger.STR_ERROR:
                     return Logger.ERROR
-                case 'WARNING':
+                case Logger.STR_WARNING:
                     return Logger.WARNING
-                case 'INFO':
+                case Logger.STR_INFO:
                     return Logger.INFO
-                case 'DEBUG':
+                case Logger.STR_DEBUG:
                     return Logger.DEBUG
-                case 'VERBOSE':
+                case Logger.STR_VERBOSE:
                     return Logger.VERBOSE
                 case _:
+                    if filter_level.isnumeric():
+                        return int(filter_level)
                     raise ValueError(utils.to_keypair_str("log_level not recognized", filter_level))
         return filter_level
 
 
 class FormattedLogger(Logger):
     '''
+    Expands base Logger implementation with ANSI-colorization, a feature to
+    me - and a nuisance to others.
     '''
 
 

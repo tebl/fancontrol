@@ -118,10 +118,19 @@ class Settings(LoggerMixin):
         else:
             value = self.get(section, key)
             match [section, key]:
+                case ['Settings', 'log_using']:
+                    if value not in Logger.OUTPUTS:
+                        raise ConfigurationError('log_using not recognized (current: {} valid: {})'.format(value, '|'.join(Logger.OUTPUTS)))
+
                 case ['Settings', 'log_formatter']:
                     if value not in ANSIFormatter.ALLOWED:
                         raise ConfigurationError('log_formatter not recognized (current: {} valid: {})'.format(value, '|'.join(ANSIFormatter.ALLOWED)))
 
                 case ['Settings', 'log_level']:
+                    try:
+                        value = Logger.to_filter_value(value)
+                    except ValueError as e:
+                        raise ConfigurationError('log_level not recognized (current: {} valid: <number>|{})'.format(value, '|'.join(Logger.LEVELS)))
+
                     if value != default:
                         self.configure_logger(value)
