@@ -1,5 +1,5 @@
 import os
-from .exceptions import RuntimeError
+from .exceptions import ControlRuntimeError
 from .logger import LoggerMixin
 
 
@@ -23,7 +23,7 @@ class PIDFile(LoggerMixin):
     
     def create(self):
         if os.path.isfile(self.pid_path) and not self.zap_if_exists:
-            raise RuntimeError('{} pid already exists'.format(self))
+            raise ControlRuntimeError('{} pid already exists'.format(self))
 
         try:
             with open(self.pid_path, 'w') as file:
@@ -31,7 +31,7 @@ class PIDFile(LoggerMixin):
             self.created = True
             self.log_verbose('{} created'.format(self))
         except PermissionError as e:
-            raise RuntimeError('{} could not write pid ({})'.format(self, str(e)))
+            raise ControlRuntimeError('{} could not write pid ({})'.format(self, str(e)))
         return self
     
 

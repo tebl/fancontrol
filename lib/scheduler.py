@@ -1,11 +1,20 @@
 from time import time
 from .logger import LoggerMixin
+from .exceptions import ControlRuntimeError
 
 
 class MicroScheduler(LoggerMixin):
-    def __init__(self, logger, step_delay):
+    '''
+    Used to manage tasks in a non-blocking manner by managing future
+    "appointments", but not really giving any guarantees beyond keeping
+    things organized.
+    '''
+
+
+    def __init__(self, logger, step_delay, limit = None):
         self.logger = logger
         self.step_delay = step_delay
+        self.limit = limit
         self.last_updated = None
         self.trigger_at = None
 

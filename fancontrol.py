@@ -57,7 +57,7 @@ class FanControl(LoggerMixin):
             self.__update_sensors()
             self.__setup_fans()
             self.__setup_pwm()
-        except RuntimeError as e:
+        except ControlRuntimeError as e:
             self.log_error('{} encountered during setup phase, halting...'.format(e))
             self.running = False
             self.__failsafe()
@@ -116,7 +116,7 @@ class FanControl(LoggerMixin):
                 self.log_verbose('{} running {}...'.format(self, method.__name__))
                 result = method(ignore_exceptions)
                 self.log_verbose('{} ... {}'.format(self, result))
-            except RuntimeError as e:
+            except ControlRuntimeError as e:
                 self.log_error('{} encountered {} during shutdown phase!'.format(self, e))
 
 
@@ -667,7 +667,7 @@ class PWMSensor(Sensor):
             return self.write(path, pwm_value)
         except SensorException as e:
             if not ignore_exceptions:
-                raise RuntimeError('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
+                raise ControlRuntimeError('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
             self.log_warning('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
         return False
 
@@ -676,7 +676,7 @@ class PWMSensor(Sensor):
         try:
             return self.read_int(self.enable_path)
         except SensorException as e:
-            raise RuntimeError('{} could not read {}_enable'.format(self, self.name))
+            raise ControlRuntimeError('{} could not read {}_enable'.format(self, self.name))
 
 
     def read_original_enable(self):
