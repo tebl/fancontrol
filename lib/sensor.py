@@ -85,4 +85,6 @@ class RawSensor(LoggerMixin):
     def __check_configuration(self):
         if not os.path.isfile(self.device_path):
             raise ConfigurationError('{}.{} not found'.format(self, 'device_path'), self.device_path)
+        if not os.access(self.device_path, os.R_OK):
+            raise ConfigurationError('{}.{} read access missing'.format(self, 'device_path'), self.device_path)
         self.log_verbose('{}.{} input OK'.format(self, 'device_path', self.device_path))

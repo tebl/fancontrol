@@ -173,10 +173,9 @@ class FanControl(LoggerMixin):
 
     def __check_dev_base(self):
         device_path = self.get_path()
-        if os.path.isdir(device_path):
-            self.log_verbose('Setting "dev_base" ({}) appears OK'.format(device_path))
-        else:
+        if not os.path.isdir(device_path):
             raise ConfigurationError('Setting "dev_base" ({}) does not match existing path'.format(self.dev_base), device_path)
+        self.log_verbose('Setting "dev_base" ({}) appears OK'.format(device_path))
 
 
     def __check_dev_name(self):
