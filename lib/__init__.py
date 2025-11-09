@@ -1,7 +1,8 @@
-from .logger import Logger, ConsoleLogger
-from .settings import Settings
+from .ansi import ANSIFormatter
 from .exceptions import *
 from .control import RawSensor
+from .logger import Logger, ConsoleLogger
+from .settings import Settings
 from . import utils
 
 
