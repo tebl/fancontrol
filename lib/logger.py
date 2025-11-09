@@ -110,8 +110,6 @@ class FormattedLogger(Logger):
     Expands base Logger implementation with ANSI-colorization, a feature to
     me - and a nuisance to others.
     '''
-
-
     def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
         self.formatter = formatter
         super().__init__(log_name, filter_level)
@@ -144,8 +142,6 @@ class ConsoleLogger(FormattedLogger):
     the current setting (a feeble attempt to reduce noise). Note that we're
     still actively filtering messages.
     '''
-
-
     def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
         super().__init__(log_name, filter_level, formatter)
 
@@ -172,8 +168,6 @@ class InteractiveLogger(ConsoleLogger):
     Similar to ConsoleLogger except we're only relying on colorized output to
     tell entries apart.
     '''
-
-
     def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
         super().__init__(log_name, filter_level, formatter)
 
@@ -195,7 +189,6 @@ class LogfileLogger(FormattedLogger):
     pretend this is here so that you'd have a nicely formatted file when output
     is redirected somewhere.
     '''
-
     def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
         super().__init__(log_name, filter_level, formatter)
 
@@ -208,6 +201,36 @@ class LogfileLogger(FormattedLogger):
                     self.format_logline(message, log_level)
                 )
             )
+
+
+class QueueLogger(Logger):
+    '''
+    Used when running tests
+    '''
+    def __init__(self, log_name, filter_level=Logger.INFO, max_entries=50):
+        self.entries = []
+        self.discarded = 0
+        self.max_entries = max_entries
+        super().__init__(log_name, filter_level)
+
+
+    def log(self, message, log_level=Logger.INFO):
+        self.entries.append({'message': message, 'log_level': log_level})
+        if len(self.entries) > self.max_entries:
+            self.entries.pop(0)
+            self.discarded += 1
+
+    
+    def includes_logged(self, message, log_level):
+        for entry in self.entries:
+            if entry['log_level'] is not log_level:
+                continue
+            if message is not None and not entry['message'].startswith(message):
+                continue
+            return self.format_logline(entry['message'], entry['log_level'])
+        return False
+        
+
 
 
 class ANSIFormatter:
@@ -329,8 +352,6 @@ class JournalLogger(Logger):
     '''
     Version of the logger that interfaces with systemd-journal
     '''
-
-
     def __init__(self, log_name, filter_level=Logger.INFO):
         super().__init__(log_name, filter_level)
 

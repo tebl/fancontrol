@@ -62,10 +62,18 @@ class RawSensor(LoggerMixin):
 
     def get_value_str(self):
         '''
-        Returns the last read sensor value as a string, formatted for output
-        with relevant unit designation.
+        Returns the last read sensor value as a string, formatted using
+        format_value_str.
         '''
-        return str(self.get_value())
+        return self.format_value(self.get_value())
+    
+
+    def format_value(self, value):
+        '''
+        Format the specified value for display as text, potentially adding more
+        sensible details in a subclass.
+        '''
+        return str(value)
 
 
     def update(self):

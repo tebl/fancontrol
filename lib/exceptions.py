@@ -44,16 +44,28 @@ class SensorException(ControlRuntimeError):
     Some sort of error occurred when reading from or writing to a configured
     sensor. 
     '''
-    def __init__(self, message):
-        super().__init__(message)
 
 
-class SchedulerLimitExceeded(ControlRuntimeError):
+class SchedulerException(ControlRuntimeError):
+    '''
+    Base exception used with MicroScheduler
+    '''
+
+
+class NotScheduledException(SchedulerException):
+    '''
+    Used when checking if the next timestamp was passed, but we haven't called
+    next_step yet - or - we've called clear on it. 
+    '''
+
+
+class SchedulerLimitExceeded(SchedulerException):
     '''
     Used with the MicroScheduler-class, raised when the step counter is
     incremented above the configured value. The idea behind this is in order
     to detect when certain operations take longer to complete than what was
     expected.
     '''
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, limit, message):
+        super().__init__(message)
+        self.limit = limit
