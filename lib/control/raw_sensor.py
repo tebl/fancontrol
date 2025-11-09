@@ -1,6 +1,6 @@
 import os.path
-from .logger import LoggerMixin
-from .exceptions import SensorException, ConfigurationError
+from ..logger import LoggerMixin
+from ..exceptions import SensorException, ConfigurationError
 
 
 class RawSensor(LoggerMixin):

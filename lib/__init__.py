@@ -1,7 +1,7 @@
 from .logger import Logger, ConsoleLogger
 from .settings import Settings
 from .exceptions import *
-from .sensor import RawSensor
+from .control import RawSensor
 from . import utils
 
 
