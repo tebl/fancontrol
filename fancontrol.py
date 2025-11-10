@@ -258,28 +258,6 @@ class FanControl(LoggerMixin):
         return sensor
 
 
-def is_config(config_path):
-    '''
-    Check that the specified configuration file actually exists and has the
-    right extension, but beyond that we're not looking at the contents of it.
-    '''
-    if not os.path.isfile(config_path):
-        raise argparse.ArgumentError(utils.to_keypair_str('No suitable file specified', config_path))
-    if not config_path.lower().endswith(('.ini')):
-        raise argparse.ArgumentError(utils.to_keypair_str('Unknown extension specified', config_path))
-    return config_path
-
-
-def is_pid(pid_path):
-    '''
-    Check that the specified configuration file actually exists and has the
-    right extension, but beyond that we're not looking at the contents of it.
-    '''
-    if not pid_path.lower().endswith(('.pid')):
-        raise argparse.ArgumentError(utils.to_keypair_str('Unknown extension specified', pid_path))
-    return pid_path
-
-
 def perform_verify(run_verify, logger, settings):
     '''
     Loads up the configuration then returns, this hopefully will allow us to
@@ -299,15 +277,6 @@ def perform_verify(run_verify, logger, settings):
     return True
 
 
-def get_filter_level(setting, set_debug, set_verbose):
-    levels = [ Logger.to_filter_value(setting) ]
-    if set_debug:
-        levels.append(Logger.DEBUG)
-    if set_verbose:
-        levels.append(Logger.VERBOSE)
-    return max(levels)
-
-
 def reconfigure_logger(args, logger, filter_level, settings):
     if args.log_console:
         logger.set_filter(filter_level)
@@ -322,7 +291,10 @@ def reconfigure_logger(args, logger, filter_level, settings):
             case Logger.LOG_FILE:
                 logger = LogfileLogger(PACKAGE_NAME, filter_level)
             case Logger.CONSOLE:
-                logger.set_filter(filter_level)
+                if type(logger) is ConsoleLogger:
+                    logger.set_filter(filter_level)
+                else:
+                    logger = ConsoleLogger(PACKAGE_NAME, filter_level)
             case _:
                 logger.log(utils.to_keypair_str('Encountered unknown logger value', settings.log_using), Logger.WARNING)
 
@@ -340,7 +312,7 @@ def reconfigure_logger(args, logger, filter_level, settings):
 
 
 def get_logger(logger, args, settings):
-    filter_level = get_filter_level(settings.log_level, args.debug, args.verbose)
+    filter_level = utils.get_filter_level(settings.log_level, args.debug, args.verbose)
     logger = reconfigure_logger(args, logger, filter_level, settings)
     logger.log('Initialized ' + str(logger), Logger.DEBUG)
     return logger
@@ -349,25 +321,20 @@ def get_logger(logger, args, settings):
 def main():
     parser = argparse.ArgumentParser()
     parser.description = 'Python fancontrol, spinning fans in the 21st century'
-    parser.add_argument('-c', '--config-path', type=is_config, default='fancontrol.ini', help='Specify configuration')
+    parser.add_argument('-c', '--config-path', type=utils.is_existing_config, default='fancontrol.ini', help='Specify configuration')
     parser.add_argument('-v', '--version', action='version', version=PACKAGE, help="Show version information")
-    parser.add_argument('--pid-file', type=is_pid, default='fancontrol.pid', help='Specify pid path')
+    parser.add_argument('--pid-file', type=utils.is_pid, default='fancontrol.pid', help='Specify pid path')
     parser.add_argument('-z', '--zap-pid', action='store_true', help='Remove pid if it exists')
     parser.add_argument('--verify', action='store_true', help='Fancontrol will load and check configuration before exiting')
     parser_logging = parser.add_mutually_exclusive_group()
     parser_logging.add_argument('--log-console', action='store_true', help='Fancontrol will only log to console')
     parser_logging.add_argument('--log-logformat', action='store_true', help='Logs are printed, but now in with timestamps')
     parser_logging.add_argument('--log-journal', action='store_true', help='Logs are sent to systemd-journal')
-    parser.add_argument('--debug', action='store_true', help='Enable debug messages')
-    parser.add_argument('--verbose', action='store_true', help='Enable verbose debug messages')
-    parser_colorization = parser.add_mutually_exclusive_group()
-    parser_colorization.add_argument('--monochrome', action='store_true', help='Remove colorization from output')
-    parser_colorization.add_argument('--less-colours', action='store_true', help='Limit colorization to 16 colours')
-    parser_colorization.add_argument('--more-colours', action='store_true', help='Allow colorization to use 256 colours')
+    utils.add_interactive_arguments(parser)
     args = parser.parse_args()
 
     try:
-        current_logger = ConsoleLogger(PACKAGE_NAME)
+        current_logger = utils.get_interactive_logger(PACKAGE_NAME, args)
         settings = Settings(args.config_path, current_logger)
 
         # If we're only running a verification of the configuration

@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from systemd import journal
 from . import *
@@ -24,7 +25,8 @@ class Logger:
     OUTPUTS = [ CONSOLE, JOURNAL, LOG_FILE ]
 
 
-    def __init__(self, log_name, filter_level = INFO):
+    def __init__(self, log_name, filter_level=INFO, auto_flush=False):
+        self.auto_flush = False
         self.log_name = log_name
         self.set_filter(filter_level)
 
@@ -33,18 +35,29 @@ class Logger:
         return utils.to_keypair_str(type(self).__name__, Logger.to_filter_level(self.filter_level))
 
 
+    def flush(self):
+        '''
+        Manually flush printed information to ensure that everything is not
+        currently held in any buffers. As an alternatively, you can do this
+        automatically by setting self.auto_flush to True at the cost of
+        performance.
+        '''
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+
     def set_filter(self, filter_level):
         self.filter_level = Logger.to_filter_value(filter_level)
         self.log(utils.to_keypair_str("configuring log level", filter_level), Logger.VERBOSE)
 
 
-    def log(self, message, log_level = INFO):
+    def log(self, message, log_level=INFO, end='\n'):
         '''
         Log a message if the current filter level is below what has been
         specified.
         '''
         if self.should_log(log_level):
-            print(self.format_logline(message, log_level))
+            print(self.format_logline(message, log_level), flush=self.auto_flush, end=end)
 
 
     def should_log(self, log_level):
@@ -110,9 +123,9 @@ class FormattedLogger(Logger):
     Expands base Logger implementation with ANSI-colorization, a feature to
     me - and a nuisance to others.
     '''
-    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
+    def __init__(self, log_name, filter_level=Logger.INFO, auto_flush=False, formatter=None):
         self.formatter = formatter
-        super().__init__(log_name, filter_level)
+        super().__init__(log_name, filter_level, auto_flush)
 
 
     def set_formatter(self, formatter):
@@ -158,8 +171,8 @@ class ConsoleLogger(FormattedLogger):
     the current setting (a feeble attempt to reduce noise). Note that we're
     still actively filtering messages.
     '''
-    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
-        super().__init__(log_name, filter_level, formatter)
+    def __init__(self, log_name, filter_level=Logger.INFO, auto_flush=False, formatter=None):
+        super().__init__(log_name, filter_level, auto_flush, formatter)
 
 
     def set_filter(self, filter_level):
@@ -184,8 +197,8 @@ class InteractiveLogger(ConsoleLogger):
     Similar to ConsoleLogger except we're only relying on colorized output to
     tell entries apart.
     '''
-    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
-        super().__init__(log_name, filter_level, formatter)
+    def __init__(self, log_name, filter_level=Logger.INFO, auto_flush=False, formatter=None):
+        super().__init__(log_name, filter_level, auto_flush, formatter)
 
 
     def format_logline(self, message, log_level):
@@ -205,17 +218,18 @@ class LogfileLogger(FormattedLogger):
     pretend this is here so that you'd have a nicely formatted file when output
     is redirected somewhere.
     '''
-    def __init__(self, log_name, filter_level=Logger.INFO, formatter=None):
-        super().__init__(log_name, filter_level, formatter)
+    def __init__(self, log_name, filter_level=Logger.INFO, auto_flush=False, formatter=None):
+        super().__init__(log_name, filter_level, auto_flush, formatter)
 
 
-    def log(self, message, log_level):
+    def log(self, message, log_level=Logger.INFO, end='\n'):
         if self.should_log(log_level):
             print('{} {}: {}'.format(
                     self.get_timestamp(),
                     self.log_name, 
                     self.format_logline(message, log_level)
-                )
+                ), 
+                flush=self.auto_flush
             )
 
 
@@ -230,7 +244,7 @@ class QueueLogger(Logger):
         super().__init__(log_name, filter_level)
     
 
-    def log(self, message, log_level=Logger.INFO):
+    def log(self, message, log_level=Logger.INFO, end='\n'):
         if not self.should_log(log_level):
             return
 
@@ -263,7 +277,7 @@ class JournalLogger(Logger):
         super().__init__(log_name, filter_level)
 
 
-    def log(self, message, log_level = Logger.INFO):
+    def log(self, message, log_level=Logger.INFO, end='\n'):
         '''
         Log a message if the current filter level is below what has been
         specified. Such messages will be lost in time, like tears in rain.
@@ -302,24 +316,24 @@ class LoggerMixin:
         self.logger = logger
 
 
-    def log_error(self, *args) -> None:
-        self.logger.log(' '.join(args), Logger.ERROR)    
+    def log_error(self, *args, end='\n') -> None:
+        self.logger.log(' '.join(args), Logger.ERROR, end=end)    
 
 
-    def log_warning(self, *args) -> None:
-        self.logger.log(' '.join(args), Logger.WARNING)    
+    def log_warning(self, *args, end='\n') -> None:
+        self.logger.log(' '.join(args), Logger.WARNING, end=end)    
 
 
-    def log_info(self, *args) -> None:
-        self.logger.log(' '.join(args), Logger.INFO)
+    def log_info(self, *args, end='\n') -> None:
+        self.logger.log(' '.join(args), Logger.INFO, end=end)
 
 
-    def log_debug(self, *args) -> None:
-        self.logger.log(' '.join(args), Logger.DEBUG)
+    def log_debug(self, *args, end='\n') -> None:
+        self.logger.log(' '.join(args), Logger.DEBUG, end=end)
 
 
-    def log_verbose(self, *args) -> None:
-        self.logger.log(' '.join(args), Logger.VERBOSE)
+    def log_verbose(self, *args, end='\n') -> None:
+        self.logger.log(' '.join(args), Logger.VERBOSE, end=end)
 
 
     def configure_logger(self, filter_level) -> None:
