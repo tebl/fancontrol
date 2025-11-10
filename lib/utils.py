@@ -1,6 +1,7 @@
 import argparse
 import os.path
-from .logger import Logger, InteractiveLogger, ANSIFormatter, FormattedLogger
+from .logger import Logger, InteractiveLogger, FormattedLogger
+from .ansi import ANSIFormatter
 from . import *
 
 def to_keypair_str(key, value):

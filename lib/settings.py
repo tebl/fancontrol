@@ -1,6 +1,7 @@
 import os
 from configparser import ConfigParser
-from .logger import Logger, LoggerMixin, ANSIFormatter
+from .logger import Logger, LoggerMixin
+from .ansi import ANSIFormatter
 from .exceptions import ConfigurationError
 
 
@@ -21,10 +22,11 @@ class Settings(LoggerMixin):
     DEFAULT_PWM_STOP = 40
 
 
-    def __init__(self, config_path, logger):
-        self.set_logger(logger)
-        self.config = ConfigParser()
+    def __init__(self, config_path, logger, reconfigure_logger=True):
         self.config_path = config_path
+        self.set_logger(logger)
+        self.reconfigure_logger = reconfigure_logger
+        self.config = ConfigParser()
         self.changed = False
         self.create_or_read()
 
@@ -119,14 +121,17 @@ class Settings(LoggerMixin):
             value = self.get(section, key)
             match [section, key]:
                 case ['Settings', 'log_using']:
+                    if not self.reconfigure_logger: return
                     if value not in Logger.OUTPUTS:
                         raise ConfigurationError('log_using not recognized (current: {} valid: {})'.format(value, '|'.join(Logger.OUTPUTS)))
 
                 case ['Settings', 'log_formatter']:
+                    if not self.reconfigure_logger: return
                     if value not in ANSIFormatter.ALLOWED:
                         raise ConfigurationError('log_formatter not recognized (current: {} valid: {})'.format(value, '|'.join(ANSIFormatter.ALLOWED)))
 
                 case ['Settings', 'log_level']:
+                    if not self.reconfigure_logger: return
                     try:
                         value = Logger.to_filter_value(value)
                     except ValueError as e:

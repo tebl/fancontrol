@@ -4,7 +4,7 @@ import sys
 import argparse
 import os
 import time
-from lib import Settings, PACKAGE, PACKAGE_NAME, utils
+from lib import Settings, PACKAGE, PACKAGE_NAME, utils, ANSIFormatter
 from lib.logger import *
 from lib.exceptions import *
 from lib.interrupt import InterruptHandler
