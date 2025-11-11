@@ -40,6 +40,14 @@ class ANSIFormatter:
         return self.ansi_code(codes) + text + self.ansi_code(0)
 
 
+    def ansi_start(self, codes, text):
+        return self.ansi_code(codes)
+
+
+    def ansi_end(self):
+        return self.ansi_code(0)
+
+
     def colour(self, base, offset):
         return base + offset
     
@@ -64,35 +72,58 @@ class ANSIFormatter:
         return [48, 5, colour_number]
 
 
+
     def in_regular(self, str):
         return str
 
 
-    def in_verbose(self, str):
+    def get_wrap_func(self, wrap_func):
+        if wrap_func is None:
+            return self.ansi_wrap
+        return wrap_func
+
+    def in_verbose(self, str, wrap_func=None):
+        wrap_func = self.get_wrap_func(wrap_func)
         if self.use_256:
-            return self.ansi_wrap(self.fg_colour_256(242), str)
-        return self.ansi_wrap([2, self.fg_colour(self.COLOUR_BLACK)], str)
+            return wrap_func(self.fg_colour_256(242), str)
+        return wrap_func([2, self.fg_colour(self.COLOUR_BLACK)], str)
 
 
-    def in_debug(self, str):
+    def in_debug(self, str, wrap_func=None):
+        wrap_func = self.get_wrap_func(wrap_func)
         if self.use_256:
-            return self.ansi_wrap(self.fg_colour_256(248), str)
-        return self.ansi_wrap([2, self.fg_colour(self.COLOUR_BLACK)], str)
+            return wrap_func(self.fg_colour_256(248), str)
+        return wrap_func([2, self.fg_colour(self.COLOUR_BLACK)], str)
 
 
-    def in_info(self, str):
+    def in_info(self, str, wrap_func=None):
+        wrap_func = self.get_wrap_func(wrap_func)
         if self.use_256:
-            return self.ansi_wrap(self.fg_colour_256(255), str)
-        return self.ansi_wrap(self.fg_colour(self.COLOUR_WHITE), str)
+            return wrap_func(self.fg_colour_256(255), str)
+        return wrap_func(self.fg_colour(self.COLOUR_WHITE), str)
 
 
-    def in_warning(self, str):
+    def in_warning(self, str, wrap_func=None):
+        wrap_func = self.get_wrap_func(wrap_func)
         if self.use_256:
-            return self.ansi_wrap(self.fg_colour_256(220), str)
-        return self.ansi_wrap(self.fg_colour(self.COLOUR_YELLOW), str)
+            return wrap_func(self.fg_colour_256(220), str)
+        return wrap_func(self.fg_colour(self.COLOUR_YELLOW), str)
 
 
-    def in_error(self, str):
+    def in_error(self, str, wrap_func=None):
+        wrap_func = self.get_wrap_func(wrap_func)
         if self.use_256:
-            return self.ansi_wrap(self.fg_colour_256(160), str)
-        return self.ansi_wrap(self.fg_colour(self.COLOUR_RED), str)
+            return wrap_func(self.fg_colour_256(160), str)
+        return wrap_func(self.fg_colour(self.COLOUR_RED), str)
+    
+
+    def in_prompt(self, str, wrap_func=None):
+        return self.in_info(str, wrap_func=wrap_func)
+
+
+    def in_highlight(self, str, wrap_func=None):
+        return self.in_debug(str, wrap_func=wrap_func)
+    
+
+    def in_value(self, str, wrap_func=None):
+        return self.in_warning(str, wrap_func=wrap_func)
