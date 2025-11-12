@@ -21,9 +21,3 @@ class ConsoleLogger(FormattedLogger):
         if Logger.to_filter_value(filter_level) < Logger.INFO:
             return super().set_filter(Logger.INFO)
         return super().set_filter(filter_level)
-
-
-    def format_logline(self, message, log_level):
-        if log_level == Logger.INFO:
-            return self.format_ansi(message, log_level)
-        return super().format_logline(message, log_level)
