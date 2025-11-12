@@ -20,6 +20,9 @@ class PromptBuilder:
     else:
         print('You entered ' + input)    
     '''
+    DEFAULT_KEYSTRING = string.digits[1:] + '0' + string.ascii_lowercase
+
+
     def __init__(self, interactive_logger, init_with=[], allowed_keystring=None):
         self.data = {}
         self.data_highlight = {}
@@ -27,7 +30,7 @@ class PromptBuilder:
 
         # Setting up valid option keys, then use that to build list of 
         # available keys.
-        self.allowed_keystring = string.digits[1:] + '0' + string.ascii_lowercase
+        self.allowed_keystring = self.DEFAULT_KEYSTRING
         if allowed_keystring is not None:
             self.allowed_keystring = allowed_keystring
         self.available_keys = [c for c in self.allowed_keystring]
@@ -106,6 +109,11 @@ class PromptBuilder:
 
 
     def print_legend(self, column_spacing=2):
+        '''
+        Print prompt legend. Attempts to put as much on a single-line as
+        possible with some space to spare, but will adapt to the length
+        of values supplied to it.
+        '''
         options = []
         highlight = []
         for key in self.keys():
@@ -146,13 +154,38 @@ class PromptBuilder:
             self.logger.log_direct('', InteractiveLogger.DIRECT_REGULAR)
 
 
+    @staticmethod
+    def ensure_keystring(required_keystring, specified_keystring):
+        '''
+        Mainly used in order to validate allowed_keystring values when supplied
+        via inheriting classes.
+        '''
+        missing = [char for char in required_keystring if not char in specified_keystring]
+        if missing:
+            raise ValueError(utils.to_keypair_str('allowed_keystring missing required values', ', '.join(missing)))
+
+
     def __contains__(self, key):
         '''
-        Allows us to easily check if we have this option set by doing
-            if key in instance
+        Allows us to easily check if we have this option set by doing:
+            if key in instance:
+                ...
         '''
         return key in self.data
 
+
+class ConfirmPromptBuilder(PromptBuilder):
+    def __init__(self, interactive_logger, init_with=[], allowed_keystring=None, include_cancel=True):
+        required_keystring = 'ynx' if include_cancel else 'yn'
+        if allowed_keystring is None:
+            allowed_keystring = required_keystring
+        self.ensure_keystring(required_keystring, allowed_keystring)
+
+        super().__init__(interactive_logger, init_with, allowed_keystring)
+        self.set('y', 'Yes')
+        self.set('n', 'No')
+        if include_cancel:
+            self.set('x', 'Cancel', highlight=True)
         
 
 class InteractiveLogger(ConsoleLogger):
@@ -245,8 +278,7 @@ class InteractiveLogger(ConsoleLogger):
                 if validation_func(result):
                     return result
                 else:
-                    sys.stdout.write("\033[F") #back to previous line 
-                    sys.stdout.write("\033[K") #clear line 
+                    self.clear_previous_line()
                     continue
 
             return result
@@ -292,3 +324,38 @@ class InteractiveLogger(ConsoleLogger):
         '''
         th, tw, hp, wp = struct.unpack('HHHH', fcntl.ioctl(0, termios.TIOCGWINSZ, struct.pack('HHHH', 0, 0, 0, 0)))
         return tw, th
+
+
+    def formatted_start(self, format_func_string):
+        '''
+        Set terminal style using formatter function with the name as specified
+        using format_func_string. Yes, I know it's weird - it was simply the
+        easiest way of specifying it without needing more code setting it up
+        than what we'd be replacing.
+
+        The function specified should have a set method structure, and was
+        designed with ANSIFormatter().in_<style>(self, str, wrap_func=None) in
+        mind.
+        '''
+        if self.formatter is None:
+            return
+        format_func = getattr(self.formatter, format_func_string)
+        if callable(format_func):
+            self.log_direct(format_func('', wrap_func=self.formatter.ansi_start), end='')
+
+
+    def formatted_end(self):
+        '''
+        Resets _all_ terminal style, not just whatever was specified using
+        formatted_start. This is an important distinction.
+        '''
+        if self.formatter is None:
+            return
+        self.log_direct(self.formatter.ansi_end(), end='')
+
+    
+    def clear_previous_line(self):
+         # Move cursor up 
+        sys.stdout.write("\033[F")
+         # Clear line
+        sys.stdout.write("\033[K")

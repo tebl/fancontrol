@@ -4,6 +4,8 @@ class ANSIFormatter:
     EXPANDED = "EXPANDED"
     ALLOWED = [ MONOCHROME, BASIC, EXPANDED ]
 
+    ANSI_RESET = 0
+
     FG_BASE = 30
     FG_BRIGHT = 90
 
@@ -37,15 +39,27 @@ class ANSIFormatter:
 
 
     def ansi_wrap(self, codes, text):
-        return self.ansi_code(codes) + text + self.ansi_code(0)
+        '''
+        Wrap the specified text with the specified ANSI-codes to set a specific
+        style, the text and then finally the ANSI-code for resetting the
+        formatting for any subsequent output. This is used with the in_<style>
+        formatting methods.
+        '''
+        return self.ansi_code(codes) + text + self.ansi_code(self.ANSI_RESET)
 
 
     def ansi_start(self, codes, text):
+        '''
+        Similar to ansi_wrap except we're only outputting the starting tag. The
+        function needs to have the same call structure as ansi_wrap in order to
+        be called when returned from get_wrap_func(self, wrap_func). This is
+        used with the in_<style> formatting methods.
+        '''
         return self.ansi_code(codes)
 
 
     def ansi_end(self):
-        return self.ansi_code(0)
+        return self.ansi_code(self.ANSI_RESET)
 
 
     def colour(self, base, offset):
@@ -72,15 +86,24 @@ class ANSIFormatter:
         return [48, 5, colour_number]
 
 
+    def get_wrap_func(self, wrap_func):
+        '''
+        We can't give a function name as a default value, so we need to replace
+        a None-value with what should have been the default value. Note that we
+        can't just insert any function here - it needs to have the same method
+        structure as ansi_wrap. In practice we're limited to the following
+        parameter options for wrap_func:
+            ansi_wrap(self, codes, text)
+            ansi_start(self, codes, text)
+        '''
+        if wrap_func is None:
+            return self.ansi_wrap
+        return wrap_func
+
 
     def in_regular(self, str):
         return str
 
-
-    def get_wrap_func(self, wrap_func):
-        if wrap_func is None:
-            return self.ansi_wrap
-        return wrap_func
 
     def in_verbose(self, str, wrap_func=None):
         wrap_func = self.get_wrap_func(wrap_func)

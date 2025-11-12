@@ -31,21 +31,6 @@ class FormattedLogger(Logger):
         return format_func(message)
 
 
-    def formatted_start(self, format_func_string):
-        if self.formatter is None:
-            return
-        format_func = getattr(self.formatter, format_func_string)
-        if callable(format_func):
-            self.log_direct(format_func('', wrap_func=self.formatter.ansi_start), end='')
-
-
-    def formatted_end(self):
-        if self.formatter is None:
-            return
-        self.log_direct(self.formatter.ansi_end(), end='')
-
-
-
     def get_format_func(self, log_level):
         if self.formatter.is_monochrome:
             return self.formatter.in_regular
