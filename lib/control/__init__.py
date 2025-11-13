@@ -5,4 +5,4 @@ from .temperature_sensor import TemperatureSensor
 from .pwm_request import PWMRequest
 from .pwm_sensor import PWMSensor
 from .fan import Fan
-
+from .base_control import BaseControl

@@ -216,6 +216,10 @@ class InteractiveLogger(ConsoleLogger):
         print(message, flush=self.auto_flush, end=end)
 
 
+    def log_error(self, message, end='\n'):
+        self.log_direct(message, styling=Logger.ERROR, end=end)
+
+
     def get_format_func(self, entry_type):
         if entry_type >= self.DIRECT_REGULAR:
             match entry_type:

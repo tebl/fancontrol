@@ -73,7 +73,7 @@ def add_interactive_arguments(parser):
     parser_colorization.add_argument('--more-colours', action='store_true', help='Allow colorization to use 256 colours')
 
 
-def get_interactive_logger(name, args, auto_flush=False):
+def get_logger(name, args, logger_class, auto_flush=False):
     '''
     Get logger suitable for interactive use, colour may cause differences in
     the output - this is controlled via the following arguments:
@@ -84,7 +84,7 @@ def get_interactive_logger(name, args, auto_flush=False):
         - args.more_colours
     '''
     filter_level = get_filter_level(Logger.INFO, args.debug, args.verbose)
-    logger = InteractiveLogger(name, filter_level=filter_level, auto_flush=auto_flush)
+    logger = logger_class(name, filter_level=filter_level, auto_flush=auto_flush)
 
     if isinstance(logger, FormattedLogger):
         features = ANSIFormatter.EXPANDED
@@ -99,3 +99,11 @@ def get_interactive_logger(name, args, auto_flush=False):
         logger.set_formatter(ANSIFormatter(features))
 
     return logger
+
+
+def get_interactive_logger(name, args, auto_flush=False):
+    return get_logger(name, args, InteractiveLogger, auto_flush)
+
+
+def get_console_logger(name, args, auto_flush=False):
+    return get_logger(name, args, ConsoleLogger, auto_flush)
