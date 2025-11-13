@@ -94,7 +94,7 @@ def get_logger(name, args, logger_class, auto_flush=False):
             features = ANSIFormatter.BASIC
         elif args.more_colours:
             # Already covered indirectly, but let's just put it here so that I
-            # don't immediately forget.
+            # don't forget about it tomorrow.
             features = ANSIFormatter.EXPANDED
         logger.set_formatter(ANSIFormatter(features))
 
@@ -102,8 +102,8 @@ def get_logger(name, args, logger_class, auto_flush=False):
 
 
 def get_interactive_logger(name, args, auto_flush=False):
-    return get_logger(name, args, InteractiveLogger, auto_flush)
+    return get_logger(name, args, InteractiveLogger, auto_flush=auto_flush)
 
 
 def get_console_logger(name, args, auto_flush=False):
-    return get_logger(name, args, ConsoleLogger, auto_flush)
+    return get_logger(name, args, ConsoleLogger, auto_flush=auto_flush)

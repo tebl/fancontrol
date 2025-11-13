@@ -25,7 +25,7 @@ class Logger:
 
 
     def __init__(self, log_name, filter_level=INFO, auto_flush=False):
-        self.auto_flush = False
+        self.auto_flush = auto_flush
         self.log_name = log_name
         self.set_filter(filter_level)
 

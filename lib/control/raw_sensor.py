@@ -53,6 +53,10 @@ class RawSensor(LoggerMixin):
         return False
 
 
+    def get_title(self):
+        return self.name
+
+
     def get_value(self):
         '''
         Returns the last read sensor value

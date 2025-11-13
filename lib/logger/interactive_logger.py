@@ -64,20 +64,41 @@ class PromptBuilder:
         if highlight is not None:
             self.set_highlight(key, highlight)
         self.data[key] = value
+        return self
 
 
-    def set_next(self, value):
+    def add_exit(self, value='Exit', highlight=True):
+        return self.set('x', value=value, highlight=highlight)
+
+
+    def add_cancel(self, highlight=True):
+        return self.add_exit(value='Cancel', highlight=highlight)
+
+
+    def add_back(self, highlight=True):
+        return self.add_exit(value='Back', highlight=highlight)
+
+
+    def set_next(self, value, start_at=None):
         '''
         Get next available option key, then set the specified value using it.
         '''
-        key = self.next_key()
+        key = self.next_key(start_at=start_at)
         self.set(key, value)
+        return key
 
 
-    def next_key(self):
+    def next_key(self, start_at=None):
         '''
         Get a unique key for use, also removes it as a candidate for set_next.
         '''
+        if start_at and start_at in self.allowed_keystring:
+            index = self.allowed_keystring.find(start_at)
+            for char in self.allowed_keystring[index:]:
+                if char in self.available_keys:
+                    self.available_keys.remove(char)
+                    return char
+
         return self.available_keys.pop(0)
 
 
@@ -145,13 +166,13 @@ class PromptBuilder:
 
                     # Highlight some entries as specified
                     if highlight.pop(0):
-                        self.logger.log_direct(entry, InteractiveLogger.DIRECT_VALUE, end='')
+                        self.logger.log_direct(entry, InteractiveLogger.DIRECT_OPTION_HIGHLIGHT, end='')
                     else:
-                        self.logger.log_direct(entry, InteractiveLogger.DIRECT_HIGHLIGHT, end='')
+                        self.logger.log_direct(entry, InteractiveLogger.DIRECT_OPTION, end='')
 
                     if column < (term_columns - 1):
-                        self.logger.log_direct(' ' * column_spacing, InteractiveLogger.DIRECT_HIGHLIGHT, end='')
-            self.logger.log_direct('', InteractiveLogger.DIRECT_REGULAR)
+                        self.logger.log_direct(' ' * column_spacing, end='')
+            self.logger.log_direct('')
 
 
     @staticmethod
@@ -199,12 +220,14 @@ class InteractiveLogger(ConsoleLogger):
     ESC = "\x1b"
     TAB = "\x09"
     CTRL_C = "\x03"
+    BACKSPACE = "\x7f"
 
     DIRECT_REGULAR = 1000
     DIRECT_HIGHLIGHT = 1001
-    DIRECT_VALUE = 1002
-    DIRECT_PROMPT = 1003
-
+    DIRECT_OPTION = 1010
+    DIRECT_OPTION_HIGHLIGHT = 1011
+    DIRECT_VALUE = 1020
+    DIRECT_PROMPT = 1030
 
     def __init__(self, log_name, filter_level=Logger.INFO, auto_flush=False, formatter=None):
         super().__init__(log_name, filter_level, auto_flush, formatter)
@@ -229,6 +252,10 @@ class InteractiveLogger(ConsoleLogger):
                     return self.formatter.in_highlight
                 case self.DIRECT_VALUE:
                     return self.formatter.in_value
+                case self.DIRECT_OPTION:
+                    return self.formatter.in_option
+                case self.DIRECT_OPTION_HIGHLIGHT:
+                    return self.formatter.in_option_highlight
                 case self.DIRECT_PROMPT:
                     return self.formatter.in_prompt
         return super().get_format_func(entry_type)
@@ -250,10 +277,9 @@ class InteractiveLogger(ConsoleLogger):
         self.log_direct(self.get_prompt(prompt), styling=self.DIRECT_PROMPT, end='')
         while True:
             result = self.get_character()
-            # Handle ESC as x
-            if result is self.ESC and 'x' in prompt_builder:
+            if result == self.BACKSPACE and 'x' in prompt_builder:
                 result = 'x'
-
+                
             if result in prompt_builder:
                 self.log_direct(result, styling=self.DIRECT_VALUE)
                 return result

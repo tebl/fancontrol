@@ -138,15 +138,41 @@ class ANSIFormatter:
         if self.use_256:
             return wrap_func(self.fg_colour_256(160), str)
         return wrap_func(self.fg_colour(self.COLOUR_RED), str)
-    
 
+
+    # Formatting options used with InteractiveLogger
     def in_prompt(self, str, wrap_func=None):
+        'Used to display input prompts'
         return self.in_info(str, wrap_func=wrap_func)
 
 
     def in_highlight(self, str, wrap_func=None):
-        return self.in_debug(str, wrap_func=wrap_func)
+        '''Used to display highlighted text.
+        
+        WHile this is certainly an option we should try to use it sparingly to
+        avoid looking like a pain sample card'''
+        return self.in_info(str, wrap_func=wrap_func)
+
+
+    def in_option(self, str, wrap_func=None):
+        'Used to format regular prompt choices'
+        wrap_func = self.get_wrap_func(wrap_func)
+        if self.use_256:
+            return wrap_func(self.fg_colour_256(69), str)
+        return wrap_func([2, self.fg_colour(self.COLOUR_BLUE)], str)
+
+
+    def in_option_highlight(self, str, wrap_func=None):
+        'Used to format highlighted prompt choices'
+        wrap_func = self.get_wrap_func(wrap_func)
+        if self.use_256:
+            return wrap_func(self.fg_colour_256(75), str)
+        return wrap_func([self.fg_colour(self.COLOUR_BLUE)], str)
     
 
     def in_value(self, str, wrap_func=None):
-        return self.in_warning(str, wrap_func=wrap_func)
+        'Used to format input values from the user'
+        wrap_func = self.get_wrap_func(wrap_func)
+        if self.use_256:
+            return wrap_func(self.fg_colour_256(75), str)
+        return wrap_func([self.fg_colour(self.COLOUR_BLUE)], str)

@@ -9,7 +9,7 @@ class ConsoleLogger(FormattedLogger):
     still actively filtering messages.
     '''
     def __init__(self, log_name, filter_level=Logger.INFO, auto_flush=False, formatter=None):
-        super().__init__(log_name, filter_level, auto_flush, formatter)
+        super().__init__(log_name, filter_level, auto_flush=auto_flush, formatter=formatter)
 
 
     def set_filter(self, filter_level):

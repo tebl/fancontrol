@@ -79,6 +79,10 @@ class Fan(LoggerMixin):
         return PWMRequest(self, target_value=pwm_value)
 
 
+    def get_title(self):
+        return self.name
+
+
     def __str__(self):
         return 'Fan({})'.format(self.name)
 
