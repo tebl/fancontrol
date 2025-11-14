@@ -6,6 +6,7 @@ from .exceptions import ConfigurationError
 
 
 class Settings(LoggerMixin):
+    SETTINGS = 'Settings'
     DEFAULT_LOG_LEVEL = Logger.INFO
     DEFAULT_LOGGER = Logger.CONSOLE
     DEFAULT_LOG_FORMATTER = ANSIFormatter.BASIC

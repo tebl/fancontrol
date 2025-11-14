@@ -13,7 +13,7 @@ from lib.config import MainContext
 
 class FanConfig(BaseControl):
     def __init__(self, settings, logger, console):
-        super().__init__(settings, logger, auto_load=True)
+        super().__init__(settings, logger, auto_load=False)
         self.console = console
         self.running = False
 
@@ -53,7 +53,7 @@ def main():
         logger = utils.get_logger(PACKAGE_NAME, args, ConsoleLogger)
         settings = Settings(args.config_path, logger, reconfigure_logger=False)
         console = utils.get_interactive_logger(PACKAGE_NAME, args, auto_flush=True)
-        console.log_direct('Starting {} {}'.format(FanConfig.__name__, PACKAGE_VERSION))
+        console.log_direct('Starting {} {}'.format(FanConfig.__name__, PACKAGE_VERSION), end='\n\n')
         with PIDFile(logger, args.pid_file, zap_if_exists=args.zap_pid):
             tune = FanConfig(settings, logger, console)
             tune.control()

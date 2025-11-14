@@ -80,6 +80,7 @@ class BaseControl(LoggerMixin):
             if self.settings.error_on_empty:
                 raise ConfigurationError('No enabled fans!')
             self.log_warning('No enabled fans!')
+        return True
 
 
     def __load_fans(self):
