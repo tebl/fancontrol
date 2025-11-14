@@ -1,4 +1,4 @@
-from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder
+from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from ..ansi import ANSIFormatter
 from .context import InteractiveContext
 from .fans import FanContext
@@ -27,11 +27,12 @@ class LoadedContext(InteractiveContext):
         input = self.console.prompt_choices(self.__get_prompt_builder())
         match input:
             case None | 'x':
-                return self.parent
+                return self.confirm_exit()
             case _:
                 fan = self.prompt_values[input]
                 self.message('Fan {} selected'.format(fan.get_title()), end='\n\n')
                 return FanContext(self.fan_config, self, fan=fan)
+        return self
 
 
     def __get_prompt_builder(self):

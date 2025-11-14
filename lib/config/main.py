@@ -20,7 +20,7 @@ class MainContext(InteractiveContext):
         input = self.console.prompt_choices(builder)
         match input:
             case None | 'x':
-                return self.parent
+                return self.confirm_exit()
             case 'l':
                 return LoggingContext(self.fan_config, self)
             case 'c':

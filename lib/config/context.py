@@ -1,4 +1,4 @@
-from ..logger import LoggerMixin, Logger, InteractiveLogger
+from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder
 
 
 class InteractiveContext(LoggerMixin):
@@ -47,6 +47,12 @@ class InteractiveContext(LoggerMixin):
         key_pad = len(max([key for key, value in list], key=len)) + len(sep)
         for key, value in list:
             self.message(prefix + self.format_key_value(key, value, key_pad=key_pad, sep=sep))
+
+
+    def confirm_exit(self):
+        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt='Confirm exit') == 'y':
+            return self.parent
+        return self
 
 
     def format_key_value(self, key, value, key_pad=16, sep=' '):
