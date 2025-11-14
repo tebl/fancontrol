@@ -6,6 +6,9 @@ from .fan import Fan
 
 
 class BaseControl(LoggerMixin):
+    BASE_PATH = '/sys/class/hwmon'
+
+
     def __init__(self, settings, logger, auto_load=True):
         self.settings = settings
         self.logger = logger
@@ -19,7 +22,7 @@ class BaseControl(LoggerMixin):
 
 
     def get_path(self):
-        return os.path.join('/sys/class/hwmon', self.dev_base)
+        return os.path.join(self.BASE_PATH, self.dev_base)
 
 
     def set_logger(self, logger):
