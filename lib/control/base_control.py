@@ -6,12 +6,16 @@ from .fan import Fan
 
 
 class BaseControl(LoggerMixin):
-    def __init__(self, settings, logger):
+    def __init__(self, settings, logger, auto_load=True):
         self.settings = settings
         self.logger = logger
+        self.auto_load = auto_load
+        self.fans = []
         self.sensors = {}
         self.outputs = {}
-        self.__read_configuration()
+        if self.auto_load:
+            self.load_configuration()
+            self.load_fans()
 
 
     def get_path(self):
@@ -53,7 +57,7 @@ class BaseControl(LoggerMixin):
         return sensor
 
 
-    def __read_configuration(self):
+    def load_configuration(self):
         self.delay = self.settings.delay
         if self.delay < 1:
             raise ConfigurationError("delay can't be less than 1", self.delay)
@@ -67,12 +71,22 @@ class BaseControl(LoggerMixin):
 
         self.__get_attribute('dev_path')
         self.__check_dev_path()
+        return True
+    
 
+    def load_fans(self):
         self.__load_fans()
         if not self.fans:
             if self.settings.error_on_empty:
                 raise ConfigurationError('No enabled fans!')
             self.log_warning('No enabled fans!')
+
+
+    def __load_fans(self):
+        self.fans = []
+        for name in self.settings.sections():
+            self.log_debug('Creating Fan({})'.format(name))
+            self.fans.append( self.create_fan(name) )
 
 
     def __get_attribute(self, attr):
@@ -124,13 +138,6 @@ class BaseControl(LoggerMixin):
             self.log_verbose('Setting "dev_path" ({}) appears OK'.format(linked_path))
         else:
             raise ConfigurationError('Path {} did not resolve to {}'.format(device_path, config_path))
-
-
-    def __load_fans(self):
-        self.fans = []
-        for name in self.settings.sections():
-            self.log_debug('Creating Fan({})'.format(name))
-            self.fans.append( self.create_fan(name) )
 
 
     def __str__(self):

@@ -4,11 +4,10 @@ from ..exceptions import SensorException, ConfigurationError
 
 
 class RawSensor(LoggerMixin):
-    def __init__(self, logger, name, device_path):
+    def __init__(self, logger, name, device_path, auto_load=True):
         self.logger = logger
         self.name = name
         self.device_path = device_path
-        self.__check_configuration()
 
 
     def read(self, sensor_path):
@@ -94,9 +93,10 @@ class RawSensor(LoggerMixin):
         return '{}({})'.format(self.__class__.__name__, self.name)
     
 
-    def __check_configuration(self):
+    def load_configuration(self):
         if not os.path.isfile(self.device_path):
             raise ConfigurationError('{}.{} not found'.format(self, 'device_path'), self.device_path)
         if not os.access(self.device_path, os.R_OK):
             raise ConfigurationError('{}.{} read access missing'.format(self, 'device_path'), self.device_path)
         self.log_verbose('{}.{} input OK'.format(self, 'device_path', self.device_path))
+        return True

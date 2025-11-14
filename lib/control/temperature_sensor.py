@@ -3,8 +3,8 @@ from .sensor import Sensor
 
 
 class TemperatureSensor(Sensor):
-    def __init__(self, controller, settings, logger, name, device_path):
-        super().__init__(controller, settings, logger, name, device_path)
+    def __init__(self, controller, settings, logger, name, device_path, auto_load=True):
+        super().__init__(controller, settings, logger, name, device_path, auto_load=auto_load)
 
 
     def get_value(self):

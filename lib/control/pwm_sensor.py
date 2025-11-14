@@ -28,8 +28,8 @@ class PWMSensor(Sensor):
     STATE_UNKNOWN = 99
 
 
-    def __init__(self, controller, settings, logger, name, device_path):
-        super().__init__(controller, settings, logger, name, device_path)
+    def __init__(self, controller, settings, logger, name, device_path, auto_load=True):
+        super().__init__(controller, settings, logger, name, device_path, auto_load=auto_load)
         self.original_enable = None
         self.enable_path = device_path + "_enable"
         self.state = self.STATE_UNKNOWN
@@ -38,8 +38,6 @@ class PWMSensor(Sensor):
         self.last_value = 0
         self.target = 0
         self.scheduler = None
-
-        self.__check_configuration()
 
 
     def update(self):
@@ -333,7 +331,8 @@ class PWMSensor(Sensor):
                    default=self.PWM_MAX)
 
 
-    def __check_configuration(self):
+    def load_configuration(self):
+        super().load_configuration()
         if not os.path.isfile(self.enable_path):
             raise ConfigurationError('{}.{} not found'.format(self, 'enable_path'), self.enable_path)
         self.log_verbose('{}.{} input OK'.format(self, 'enable_path', self.device_path))

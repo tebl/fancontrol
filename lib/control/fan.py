@@ -12,12 +12,13 @@ class Fan(LoggerMixin):
     PWM_MAX = 255
 
 
-    def __init__(self, controller, settings, logger, name):
+    def __init__(self, controller, settings, logger, name, auto_load=True):
         self.controller = controller
         self.settings = settings
         self.logger = logger
         self.name = name
-        self.__read_configuration()
+        if auto_load:
+            self.load_configuration()
         self.log_debug('{} initialized OK'.format(self))
 
 
@@ -87,7 +88,7 @@ class Fan(LoggerMixin):
         return 'Fan({})'.format(self.name)
 
 
-    def __read_configuration(self):
+    def load_configuration(self):
         if not self.name:
             raise ConfigurationError('Malformed fan name', self.name)
         if not self.settings.have_section(self.name):

@@ -3,8 +3,8 @@ from .sensor import Sensor
 
 
 class FanSensor(Sensor):
-    def __init__(self, controller, settings, logger, name, device_path):
-        super().__init__(controller, settings, logger, name, device_path)
+    def __init__(self, controller, settings, logger, name, device_path, auto_load=True):
+        super().__init__(controller, settings, logger, name, device_path, auto_load=auto_load)
 
     
     def format_value(self, value):
