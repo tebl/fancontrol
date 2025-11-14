@@ -2,152 +2,18 @@
 
 import sys
 import argparse
-import os
-import time
 from lib import Settings, PACKAGE, PACKAGE_NAME, PACKAGE_VERSION, utils
 from lib.logger import *
 from lib.exceptions import *
 from lib.pid_file import PIDFile
-from lib.control import BaseControl, RawSensor, Sensor, PWMRequest, PWMSensor, FanSensor, TemperatureSensor, Fan
-from lib.scheduler import MicroScheduler
+from lib.control import BaseControl
 from lib import utils
-
-
-class InteractiveContext(LoggerMixin):
-    SUBKEY_INDENT = '  '
-
-    def __init__(self, fan_config, parent):
-        self.fan_config = fan_config
-        self.parent = parent
-        self.console = self.fan_config.console
-
-
-    def __getattribute__(self, name):
-        match name:
-            case 'console':
-                return self.fan_config.console
-        return super().__getattribute__(name)
-
-    
-    def interact(self):
-        return self.parent
-    
-
-    def message(self, message='', styling=InteractiveLogger.DIRECT_REGULAR, end='\n'):
-        self.console.log_direct(message, styling=styling, end=end)
-
-
-    def error(self, message, styling=Logger.ERROR, end='\n'):
-        self.message(message, styling=styling, end=end)
-
-
-    def summarise(self, list, sep=': ', prefix=''):
-        if not list:
-            return
-        self.message('Summary:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
-        key_pad = len(max([key for key, value in list], key=len)) + len(sep)
-        for key, value in list:
-            self.message(prefix + self.format_key_value(key, value, key_pad=key_pad, sep=sep))
-
-
-    def format_key_value(self, key, value, key_pad=16, sep=' '):
-        if key_pad:
-            return (key + sep).ljust(key_pad) + str(value)
-        return (key + sep) + str(value)
-
-
-    def format_pwm(self, value):
-        return '({}/255)'.format(str(value).rjust(3))
-    
-    def format_temp(self, value):
-        return str(value) + "°C"
-
-
-class MainContext(InteractiveContext):
-    def __init__(self, *args):
-        super().__init__(*args)
-
-
-    def interact(self):
-        self.summarise([
-            ['Delay', 'Controller updates every {} seconds'.format(self.fan_config.delay)],
-            ['Device', self.fan_config.get_path()],
-            [self.SUBKEY_INDENT + 'Path checked', self.fan_config.dev_path],
-            [self.SUBKEY_INDENT + 'Driver checked', self.fan_config.dev_name]
-        ])
-
-        self.message()
-        self.message('Listing available definitions:')
-        input = self.console.prompt_choices(self.__get_prompt_builder())
-        match input:
-            case None | 'x':
-                return self.parent
-            case _:
-                fan = self.prompt_values[input]
-                self.message('Fan {} selected'.format(fan.get_title()), end='\n\n')
-                return FanContext(self.fan_config, self, fan=fan)
-        return self
-
-
-    def __get_prompt_builder(self):
-        builder = PromptBuilder(self.console)
-        self.prompt_values = {}
-        for fan in self.fan_config.fans:
-            key = builder.set_next(fan.get_title())
-            self.prompt_values[key] = fan
-        builder.add_exit()
-        return builder
-
-
-class FanContext(InteractiveContext):
-    def __init__(self, *args, fan):
-        self.fan = fan
-        super().__init__(*args)
-
-
-    def interact(self):
-        self.summarise([
-            ['Controlled by', self.fan.device],
-            [self.SUBKEY_INDENT + 'Minimum', self.format_pwm(self.fan.pwm_min)],
-            [self.SUBKEY_INDENT + 'Maximum', self.format_pwm(self.fan.pwm_max)],
-            [self.SUBKEY_INDENT + 'Start', self.format_pwm(self.fan.pwm_start)],
-            [self.SUBKEY_INDENT + 'Stop', self.format_pwm(self.fan.pwm_stop)],
-            ['Based on', self.fan.sensor],
-            [self.SUBKEY_INDENT + 'Minimum', self.format_temp(self.fan.sensor_min)],
-            [self.SUBKEY_INDENT + 'Maximum', self.format_temp(self.fan.sensor_max)]
-        ])
-
-        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self.fan.get_title())
-        match input:
-            case None | 'x':
-                return self.parent
-            case _:
-                self.message('You entered ' + input)
-                return self
-        return self
-    
-
-
-
-
-    def __get_prompt_builder(self):
-        builder = PromptBuilder(self.console)
-        # self.prompt_values = {}
-        # for fan in self.fan_config.fans:
-        #     key = builder.set_next(fan.get_title())
-        #     self.prompt_values[key] = fan
-        builder.add_back()
-        return builder
-
-
-    # def validate_input(self, value):
-    #     return value == 'end'
+from lib.config import MainContext
 
 
 class FanConfig(BaseControl):
     def __init__(self, settings, logger, console):
-        super().__init__(settings, logger)
-        self.__read_configuration()
+        super().__init__(settings, logger, auto_load=True)
         self.console = console
         self.running = False
 
@@ -169,8 +35,8 @@ class FanConfig(BaseControl):
         pass
 
 
-    def __read_configuration(self):
-        pass
+    def load_configuration(self):
+        return super().load_configuration()
 
 
 def main():
