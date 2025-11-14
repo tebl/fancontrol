@@ -2,8 +2,8 @@ import traceback
 from ..logger import PromptBuilder, Logger
 from ..exceptions import ConfigurationError
 from .context import InteractiveContext
-from .logging_context import LoggingContext
-from .loaded_context import LoadedContext
+from .logging import LoggingContext
+from .main_loaded import LoadedContext
 
 
 class MainContext(InteractiveContext):

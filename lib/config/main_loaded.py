@@ -1,7 +1,7 @@
 from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder
 from ..ansi import ANSIFormatter
 from .context import InteractiveContext
-from .fan_context import FanContext
+from .fans import FanContext
 
 
 class LoadedContext(InteractiveContext):
