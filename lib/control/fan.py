@@ -80,8 +80,10 @@ class Fan(LoggerMixin):
         return PWMRequest(self, target_value=pwm_value)
 
 
-    def get_title(self):
-        return self.name
+    def get_title(self, include_summary=False):
+        if not include_summary:
+            return self.name
+        return '{} (device={}, sensor={}, pwm_input={})'.format(self.name, self.device.get_title(), self.sensor.get_title(), self.pwm_input.get_title())
 
 
     def __str__(self):

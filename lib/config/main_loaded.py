@@ -18,12 +18,12 @@ class LoadedContext(InteractiveContext):
         self.summarise([
             ['Delay', 'Controller updates every {} seconds'.format(self.fan_config.delay)],
             ['Device', self.fan_config.get_path()],
-            [self.SUBKEY_INDENT + 'Path checked', self.fan_config.dev_path],
-            [self.SUBKEY_INDENT + 'Driver checked', self.fan_config.dev_name]
+            [self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path],
+            [self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name]
         ])
 
-        self.message()
-        self.message('Listing available definitions:')
+        self.__list_fans()
+
         input = self.console.prompt_choices(self.__get_prompt_builder())
         match input:
             case None | 'x':
@@ -33,6 +33,13 @@ class LoadedContext(InteractiveContext):
                 self.message('Fan {} selected'.format(fan.get_title()), end='\n\n')
                 return FanContext(self.fan_config, self, fan=fan)
         return self
+
+
+    def __list_fans(self):
+        self.message('Listing available definitions:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
+        for fan in self.fan_config.fans:
+            self.message(self.SUBKEY_INDENT + fan.get_title(include_summary=True), styling=Logger.DEBUG)
+        self.message()
 
 
     def __get_prompt_builder(self):

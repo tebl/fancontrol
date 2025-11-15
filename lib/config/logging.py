@@ -14,9 +14,9 @@ class LoggingContext(InteractiveContext):
 
     def interact(self):
         self.summarise([
-            [self.LOG_FORMATTING, self.fan_config.settings.log_formatter],
-            [self.LOG_LEVEL, self.fan_config.settings.log_level],
-            [self.LOG_USING, self.fan_config.settings.log_using]
+            [self.LOG_USING, self.fan_config.settings.log_using],
+            [self.SUBKEY_CHILD + self.LOG_FORMATTING, self.fan_config.settings.log_formatter],
+            [self.SUBKEY_CHILD + self.LOG_LEVEL, self.fan_config.settings.log_level],
         ])
 
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
@@ -24,9 +24,9 @@ class LoggingContext(InteractiveContext):
             case None | 'x':
                 return self.parent
             case 'e':
+                self.__explain_using(self.LOG_USING, self.fan_config.settings.log_using)
                 self.__explain_formatter(self.LOG_FORMATTING, self.fan_config.settings.log_formatter)
                 self.__explain_level(self.LOG_LEVEL, self.fan_config.settings.log_level)
-                self.__explain_using(self.LOG_USING, self.fan_config.settings.log_using)
             case 'l':
                 value = self.__toggle_level(self.fan_config.settings.log_level)
                 self.fan_config.settings.set('Settings', 'log_level', value)

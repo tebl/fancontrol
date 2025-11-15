@@ -4,6 +4,7 @@ from ..exceptions import ConfigurationError
 from .context import InteractiveContext
 from .logging import LoggingContext
 from .main_loaded import LoadedContext
+from .hwmon import HWMONContext
 
 
 class MainContext(InteractiveContext):
@@ -13,19 +14,22 @@ class MainContext(InteractiveContext):
 
     def interact(self):
         builder = PromptBuilder(self.console).add_exit()
-        builder.set('c', 'Load configuration', True)
-        builder.set('l', 'Set logging', True)
+        builder.set('c', 'Load configuration', highlight=True)
+        builder.set('h', 'Set hwmon', highlight=True)
+        builder.set('l', 'Set logging', highlight=True)
 
         self.message('Actions available:')
         input = self.console.prompt_choices(builder)
         match input:
             case None | 'x':
                 return self.confirm_exit()
-            case 'l':
-                return LoggingContext(self.fan_config, self)
             case 'c':
                 if self.__attempt_load():
                     return LoadedContext(self.fan_config, parent=None)
+            case 'h':
+                return HWMONContext(self.fan_config, self)
+            case 'l':
+                return LoggingContext(self.fan_config, self)
         return self
 
 

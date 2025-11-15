@@ -3,6 +3,8 @@ from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilde
 
 class InteractiveContext(LoggerMixin):
     SUBKEY_INDENT = '  '
+    SUBKEY_CHILD =  '\u21B3 '
+    CONFIRM_EXIT = False 
 
     def __init__(self, fan_config, parent):
         self.fan_config = fan_config
@@ -35,7 +37,7 @@ class InteractiveContext(LoggerMixin):
         self.message(message, styling=styling, end=end)
 
 
-    def summarise(self, list, sep=': ', prefix=''):
+    def summarise(self, list, sep=': ', prefix=SUBKEY_INDENT):
         '''
         Used near the start of a context interaction to summarise common values
         used in this section. List should have the structure of (key, value)
@@ -46,13 +48,20 @@ class InteractiveContext(LoggerMixin):
         self.message('Summary:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         key_pad = len(max([key for key, value in list], key=len)) + len(sep)
         for key, value in list:
-            self.message(prefix + self.format_key_value(key, value, key_pad=key_pad, sep=sep))
+            self.message(prefix + self.format_key_value(key, value, key_pad=key_pad, sep=sep), styling=Logger.DEBUG)
+        self.message()
 
 
     def confirm_exit(self):
-        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt='Confirm exit') == 'y':
-            return self.parent
-        return self
+        '''
+        Used to confirm exit if this feature has been enabled, if not we'll
+        just return parent context. 
+        '''
+        if self.CONFIRM_EXIT:
+            if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt='Confirm exit') == 'y':
+                return self.parent
+            return self
+        return self.parent
 
 
     def format_key_value(self, key, value, key_pad=16, sep=' '):

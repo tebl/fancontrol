@@ -31,7 +31,7 @@ class FanConfig(BaseControl):
 
 
     def shutdown(self):
-        print('Shutting down')
+        # print('Shutting down')
         pass
 
 

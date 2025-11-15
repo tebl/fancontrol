@@ -158,7 +158,7 @@ class ANSIFormatter:
         'Used to format regular prompt choices'
         wrap_func = self.get_wrap_func(wrap_func)
         if self.use_256:
-            return wrap_func(self.fg_colour_256(69), str)
+            return wrap_func(self.fg_colour_256(63), str)
         return wrap_func([2, self.fg_colour(self.COLOUR_BLUE)], str)
 
 

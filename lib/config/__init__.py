@@ -1,9 +1,10 @@
 from .context import InteractiveContext
 from .main import MainContext
 from .logging import LoggingContext
-from .hwmon import HwMonContext
+from .hwmon import HWMONContext
 from .main_loaded import LoadedContext
 from .fans import FanContext
+from .hwmon_info import HwmonInfo
 
 # Context structure:
 #

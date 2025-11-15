@@ -20,7 +20,9 @@ class PromptBuilder:
     else:
         print('You entered ' + input)    
     '''
-    DEFAULT_KEYSTRING = string.digits[1:] + '0' + string.ascii_lowercase
+    KEYSTRING_ALPHANUM = string.digits + string.ascii_lowercase
+    KEYSTRING_NATURAL = string.digits[1:] + '0' + string.ascii_lowercase
+    DEFAULT_KEYSTRING = KEYSTRING_NATURAL
 
 
     def __init__(self, interactive_logger, init_with=[], allowed_keystring=None):
@@ -50,7 +52,7 @@ class PromptBuilder:
         return default
 
 
-    def set(self, key, value=None, highlight=None):
+    def set(self, key, value=None, highlight=None, add_missing_key=False):
         '''
         Set prompt key to a value. Note that while a value of None will cause
         the key to be left out when explocitly listing the keys, it will also
@@ -58,7 +60,9 @@ class PromptBuilder:
         of certain keys.
         '''
         if key not in self.allowed_keystring:
-            raise ValueError(utils.to_keypair_str('invalid key specified', key))
+            if not add_missing_key:
+                raise ValueError(utils.to_keypair_str('invalid key specified', key))
+            self.allowed_keystring += key
         if key in self.available_keys:
             self.available_keys.remove(key)
         if highlight is not None:
@@ -79,12 +83,12 @@ class PromptBuilder:
         return self.add_exit(value='Back', highlight=highlight)
 
 
-    def set_next(self, value, start_at=None):
+    def set_next(self, value, start_at=None, highlight=None):
         '''
         Get next available option key, then set the specified value using it.
         '''
         key = self.next_key(start_at=start_at)
-        self.set(key, value)
+        self.set(key, value, highlight=highlight)
         return key
 
 
@@ -119,14 +123,14 @@ class PromptBuilder:
         specified.
         '''
         if key in self.data_highlight:
-            return self.data_highlight
+            return self.data_highlight[key]
         elif key == 'x':
             return default_for_x
         return default
 
 
     def set_highlight(self, key, value):
-        self.data_highlight[key] = bool(value)
+        self.data_highlight[key] = value
 
 
     def print_legend(self, column_spacing=2):
@@ -228,6 +232,7 @@ class InteractiveLogger(ConsoleLogger):
     DIRECT_OPTION_HIGHLIGHT = 1011
     DIRECT_VALUE = 1020
     DIRECT_PROMPT = 1030
+
 
     def __init__(self, log_name, filter_level=Logger.INFO, auto_flush=False, formatter=None):
         super().__init__(log_name, filter_level, auto_flush, formatter)
