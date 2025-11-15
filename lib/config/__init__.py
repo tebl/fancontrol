@@ -3,7 +3,7 @@ from .main import MainContext
 from .logging import LoggingContext
 from .hwmon import HWMONContext
 from .main_loaded import LoadedContext
-from .fans import FanContext
+from .selected_fan import SelectedFanContext
 from .hwmon_info import HwmonInfo
 
 # Context structure:
@@ -12,5 +12,5 @@ from .hwmon_info import HwmonInfo
 #   - logging
 #   - hwmon
 #   - main_loaded
-#     - fans
+#     - fans_loaded
 #

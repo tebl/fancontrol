@@ -13,10 +13,11 @@ class MainContext(InteractiveContext):
 
 
     def interact(self):
-        builder = PromptBuilder(self.console).add_exit()
+        builder = PromptBuilder(self.console)
         builder.set('c', 'Load configuration', highlight=True)
         builder.set('h', 'Set hwmon', highlight=True)
         builder.set('l', 'Set logging', highlight=True)
+        builder.add_exit()
 
         self.message('Actions available:')
         input = self.console.prompt_choices(builder)
@@ -36,7 +37,7 @@ class MainContext(InteractiveContext):
     def __attempt_load(self):
         try:
             self.fan_config.settings.create_or_read()
-            self.configuration_loaded = self.fan_config.load_configuration() and self.fan_config.load_fans()
+            self.configuration_loaded = self.fan_config.load_configuration()
             if self.configuration_loaded:
                 self.message('Configuration loaded.', end='\n\n')
             return True

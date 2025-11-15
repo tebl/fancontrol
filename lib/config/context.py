@@ -1,3 +1,4 @@
+import itertools
 from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder
 
 
@@ -46,9 +47,12 @@ class InteractiveContext(LoggerMixin):
         if not list:
             return
         self.message('Summary:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
-        key_pad = len(max([key for key, value in list], key=len)) + len(sep)
-        for key, value in list:
-            self.message(prefix + self.format_key_value(key, value, key_pad=key_pad, sep=sep), styling=Logger.DEBUG)
+        key_pad = len(max([key for key, value, *params in list], key=len)) + len(sep)
+        for key, value, *params in list:
+            styling = Logger.DEBUG
+            if params:
+                styling = params.pop(0)
+            self.message(prefix + self.format_key_value(key, value, key_pad=key_pad, sep=sep), styling=styling)
         self.message()
 
 

@@ -61,16 +61,18 @@ class Settings(LoggerMixin):
         self.changed = False
 
 
-    def sections(self, filter_special=True):
+    def sections(self, filter_special=True, only_enabled=True):
         sections = self.config.sections()
-        sections = filter(lambda section: self.__include_section(section, filter_special), sections)
+        sections = filter(lambda section: self.__include_section(section, filter_special=filter_special, only_enabled=only_enabled), sections)
         return list(sections)
 
 
-    def __include_section(self, section, filter_special=True):
+    def __include_section(self, section, filter_special=True, only_enabled=True):
         if filter_special and section in ['Settings']:
             return False
-        return self.is_enabled(section, 'enabled')
+        if only_enabled:
+            return self.is_enabled(section)
+        return True
 
 
     def get(self, section, key, fallback = None):
@@ -104,10 +106,16 @@ class Settings(LoggerMixin):
         return key in self.config[section]
 
 
-    def is_enabled(self, section, key, default_value = False):
+    def is_enabled(self, section, default_value = False):
+        key = 'enabled'
         if not self.have_key(section, key):
             return default_value
         return self.config.getboolean(section, key)
+
+
+    def set_enabled(self, section, value):
+        value = 'yes' if value else 'no'
+        self.set(section, 'enabled', value)
 
 
     def __restore_key(self, section, key, default):

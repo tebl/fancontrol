@@ -2,7 +2,7 @@ from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder
 from .context import InteractiveContext
 
 
-class FanContext(InteractiveContext):
+class SelectedFanContext(InteractiveContext):
     def __init__(self, *args, fan):
         self.fan = fan
         super().__init__(*args)

@@ -52,35 +52,47 @@ class PromptBuilder:
         return default
 
 
-    def set(self, key, value=None, highlight=None, add_missing_key=False):
+    def set(self, key, value=None, highlight=None, add_missing_key=False, reorder=False):
         '''
         Set prompt key to a value. Note that while a value of None will cause
         the key to be left out when explocitly listing the keys, it will also
         remove it from the list of available keys - this is to allow the removal
         of certain keys.
         '''
+        # Handle missing keys
         if key not in self.allowed_keystring:
             if not add_missing_key:
                 raise ValueError(utils.to_keypair_str('invalid key specified', key))
             self.allowed_keystring += key
+        
+        # Reorder as last key, keeps system functions from drowning in a list
+        if reorder:
+            index = self.allowed_keystring.index(key)
+            self.allowed_keystring = self.allowed_keystring[:index] + self.allowed_keystring[index+1:] + key
+
+        # Remove key from automatic assignment
         if key in self.available_keys:
             self.available_keys.remove(key)
+        
+        # Set new highlight, but don't overwrite without a value
         if highlight is not None:
             self.set_highlight(key, highlight)
+
+        # Set the actual value
         self.data[key] = value
         return self
 
 
-    def add_exit(self, value='Exit', highlight=True):
-        return self.set('x', value=value, highlight=highlight)
+    def add_exit(self, value='Exit', highlight=True, reorder=False):
+        return self.set('x', value=value, highlight=highlight, reorder=reorder)
 
 
-    def add_cancel(self, highlight=True):
-        return self.add_exit(value='Cancel', highlight=highlight)
+    def add_cancel(self, highlight=True, reorder=False):
+        return self.add_exit(value='Cancel', highlight=highlight, reorder=reorder)
 
 
-    def add_back(self, highlight=True):
-        return self.add_exit(value='Back', highlight=highlight)
+    def add_back(self, highlight=True, reorder=False):
+        return self.add_exit(value='Back', highlight=highlight, reorder=reorder)
 
 
     def set_next(self, value, start_at=None, highlight=None):
