@@ -1,12 +1,15 @@
-import os
+import os, string
 from configparser import ConfigParser
 from .logger import Logger, LoggerMixin
 from .ansi import ANSIFormatter
-from .exceptions import ConfigurationError
+from .exceptions import ConfigurationError, ControlRuntimeError
 
 
 class Settings(LoggerMixin):
     SETTINGS = 'Settings'
+    SPECIAL_SECTIONS = [ SETTINGS ]
+    DEFAULT_ALLOWED_CHARS = string.ascii_letters + string.digits + '_-#.'
+
     DEFAULT_LOG_LEVEL = Logger.INFO
     DEFAULT_LOGGER = Logger.CONSOLE
     DEFAULT_LOG_FORMATTER = ANSIFormatter.BASIC
@@ -23,26 +26,30 @@ class Settings(LoggerMixin):
     DEFAULT_PWM_STOP = 40
 
 
-    def __init__(self, config_path, logger, reconfigure_logger=True):
+    def __init__(self, config_path, logger, reconfigure_logger=True, allowed_chars=DEFAULT_ALLOWED_CHARS, auto_create=True):
+        '''
+        Creates an instance with the configured config_path, by default we will
+        create the file if it currently does not exist.
+        '''
         self.config_path = config_path
         self.set_logger(logger)
         self.reconfigure_logger = reconfigure_logger
+        self.allowed_chars = allowed_chars
         self.config = ConfigParser()
         self.changed = False
-        self.create_or_read()
+        self.create_or_read(auto_create)
 
 
-    def __getattr__(self, attr):
-        match attr:
+    def __getattr__(self, name):
+        match name:
             case 'delay':
-                return self.config.getint('Settings', attr)
+                return self.config.getint('Settings', name)
             case 'error_on_empty':
-                return self.config.getboolean('Settings', attr)
+                return self.config.getboolean('Settings', name)
+        return self.get('Settings', name)
 
-        return self.get('Settings', attr)
 
-
-    def create_or_read(self):
+    def create_or_read(self, auto_create=True):
         if os.path.isfile(self.config_path):
             self.config.read(self.config_path)
         self.__restore_key('Settings','log_level', Logger.to_filter_level(Settings.DEFAULT_LOG_LEVEL))
@@ -51,7 +58,7 @@ class Settings(LoggerMixin):
         self.__restore_key('Settings','delay', str(Settings.DEFAULT_DELAY))
         self.__restore_key('Settings','error_on_empty', Settings.DEFAULT_ERROR_ON_EMPTY)
 
-        if self.changed:
+        if auto_create and self.changed:
             self.save()
 
 
@@ -62,13 +69,17 @@ class Settings(LoggerMixin):
 
 
     def sections(self, filter_special=True, only_enabled=True):
+        '''
+        Retrieves a list of sections found in the configuration, with some
+        of them reserved for special use-cases such as 'Settings'.
+        '''
         sections = self.config.sections()
         sections = filter(lambda section: self.__include_section(section, filter_special=filter_special, only_enabled=only_enabled), sections)
         return list(sections)
 
 
     def __include_section(self, section, filter_special=True, only_enabled=True):
-        if filter_special and section in ['Settings']:
+        if filter_special and self.is_special(section):
             return False
         if only_enabled:
             return self.is_enabled(section)
@@ -86,9 +97,11 @@ class Settings(LoggerMixin):
     def set(self, section, key, value):
         value = str(value)
         if not self.have_section(section):
+            self.check_allowed_chars(section)
             self.config[section] = {}
             self.changed = True
         if not self.have_key(section, key):
+            self.check_allowed_chars(key)
             self.changed = True
         else:
             if self.get(section, key) != value:
@@ -106,11 +119,35 @@ class Settings(LoggerMixin):
         return key in self.config[section]
 
 
+    def is_special(self, section):
+        return section in self.SPECIAL_SECTIONS
+
+
     def is_enabled(self, section, default_value = False):
         key = 'enabled'
         if not self.have_key(section, key):
             return default_value
         return self.config.getboolean(section, key)
+
+
+    def rename_section(self, section, new_name):
+        if not new_name:
+            raise ControlRuntimeError('new_name must be set')
+        if self.is_special(section):
+            raise ControlRuntimeError("{} is a special section".format(section))
+        if self.is_special(new_name):
+            raise ControlRuntimeError("{} is a special section".format(new_name))
+        if not self.have_section(section):
+            raise ControlRuntimeError("{} does not exist".format(section))
+        if self.have_section(new_name):
+            raise ControlRuntimeError("{} already exists".format(new_name))
+        
+        self.config.add_section(new_name)
+        for (key, value) in self.config.items(section):
+            self.config.set(new_name, key, value)
+        self.config.remove_section(section)
+        return True
+        
 
 
     def set_enabled(self, section, value):
@@ -148,3 +185,30 @@ class Settings(LoggerMixin):
 
                     if value != default:
                         self.configure_logger(value)
+
+
+    def check_allowed_chars(self, key_string):
+        '''
+        Check if the supplied key_string will be considered valid by this
+        class, commonly used to validate values entered by the user.
+        '''
+        if not key_string:
+            raise ControlRuntimeError("Supplied string was empty")
+        for char in key_string:
+            if char not in self.allowed_chars:
+                raise ControlRuntimeError("Character '{}' not in allowed_chars()".format(char, self.allowed_chars))
+        return True
+    
+
+    def strip_illegal_chars(self, key_string):
+        '''
+        Supplied with a key taken from some other resource, we should strip
+        away all characters that isn't listed in allowed_chars. Note that the
+        result might still not be considered valid by the class, in particular
+        if the result has a length of 0.
+        '''
+        result = []
+        for char in key_string:
+            if char in self.allowed_chars:
+                result.append(char)
+        return ''.join(result)

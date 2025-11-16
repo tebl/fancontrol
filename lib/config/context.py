@@ -5,6 +5,8 @@ from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilde
 class InteractiveContext(LoggerMixin):
     SUBKEY_INDENT = '  '
     SUBKEY_CHILD =  '\u21B3 '
+    UNIT_CELSIUS = '°C'
+
     CONFIRM_EXIT = False 
 
     def __init__(self, fan_config, parent):
@@ -79,7 +81,7 @@ class InteractiveContext(LoggerMixin):
     
 
     def format_temp(self, value):
-        return str(value) + "°C"
+        return str(value) + self.UNIT_CELSIUS
 
 
     def toggle_from_list(self, list, current, default):
