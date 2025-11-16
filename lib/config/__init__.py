@@ -4,7 +4,8 @@ from .logging import LoggingContext
 from .hwmon import HWMONContext
 from .main_loaded import LoadedContext
 from .selected_fan import SelectedFanContext
-from .hwmon_info import HwmonInfo
+from .section import SectionContext
+from .section_pwm_input import SectionPWMInputContext
 
 # Context structure:
 #
@@ -12,5 +13,7 @@ from .hwmon_info import HwmonInfo
 #   - logging
 #   - hwmon
 #   - main_loaded
+#     - section
+#       - section_pwm_input
 #     - fans_loaded
 #

@@ -3,6 +3,7 @@ from .exceptions import *
 from .control import RawSensor
 from .logger import Logger, ConsoleLogger
 from .settings import Settings
+from .hwmon_info import HwmonInfo
 from . import utils
 
 

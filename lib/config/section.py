@@ -1,6 +1,7 @@
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from ..exceptions import ControlRuntimeError
 from .context import InteractiveContext
+from .section_pwm_input import SectionPWMInputContext
 
 
 class SectionContext(InteractiveContext):
@@ -18,6 +19,8 @@ class SectionContext(InteractiveContext):
                 return self.parent
             case 'e':
                 return self.__handle_enable()
+            case 'i':
+                return SectionPWMInputContext(self.fan_config, self, section=self.section)
             case 'n':
                 return self.__handle_rename()
             case 'r':

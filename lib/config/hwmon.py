@@ -3,7 +3,7 @@ from ..exceptions import *
 from ..control import BaseControl
 from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from .context import InteractiveContext
-from .hwmon_info import HwmonInfo
+from ..hwmon_info import HwmonInfo
 
 
 class HWMONContext(InteractiveContext):
