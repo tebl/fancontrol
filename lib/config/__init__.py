@@ -5,7 +5,6 @@ from .hwmon import HWMONContext
 from .main_loaded import LoadedContext
 from .selected_fan import SelectedFanContext
 from .section import SectionContext
-from .section_pwm_input import SectionPWMInputContext
 
 # Context structure:
 #
@@ -14,6 +13,7 @@ from .section_pwm_input import SectionPWMInputContext
 #   - hwmon
 #   - main_loaded
 #     - section
-#       - section_pwm_input
+#       - section_tuning
+#       - section_monitor
 #     - fans_loaded
 #

@@ -1,6 +1,8 @@
-import itertools
+import os
 from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder
-
+from ..control import BaseControl
+from ..hwmon_info import HwmonInfo
+from ..logger import PromptBuilder
 
 class InteractiveContext(LoggerMixin):
     SUBKEY_INDENT = '  '
@@ -107,6 +109,45 @@ class InteractiveContext(LoggerMixin):
         '''
         self.message('{} set to {}'.format(name, value))
         self.message(description.format(name, value), styling=Logger.DEBUG, end='\n\n')
+
+
+    def hwmon_load(self, validation_func=None):
+        hwmon_list = []
+        for dirpath, dirnames, filenames in os.walk(BaseControl.BASE_PATH):
+            dirnames.sort()
+            for dir in dirnames:
+                hwmon_entry = HwmonInfo(dir, os.path.join(BaseControl.BASE_PATH, dir))
+                if validation_func is None or validation_func(hwmon_entry):
+                    hwmon_list.append(hwmon_entry)
+            return hwmon_list
+
+
+    def hwmon_list(self, hwmon_list):
+        self.message('Listing hwmon:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
+        if hwmon_list:
+            for entry in hwmon_list:
+                self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=Logger.DEBUG)
+        else:
+            self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
+        self.message()
+
+
+    def hwmon_select(self, hwmon_list, current):
+        choices = {}
+        builder = PromptBuilder(self.console)
+        builder.add_back()
+        for hwmon_entry in hwmon_list:
+            highlight = hwmon_entry.matches(current)
+            key = builder.set_next(hwmon_entry.get_title(), start_at=hwmon_entry.suggest_key(), highlight=highlight)
+            choices[key] = hwmon_entry
+        
+        selected = self.console.prompt_choices(builder, prompt='Select hwmon')
+        match selected:
+            case None | 'x':
+                return None
+            case _:
+                return choices[selected]
+        return None
 
 
     def __str__(self):

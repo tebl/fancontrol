@@ -1,7 +1,9 @@
+import os
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from ..exceptions import ControlRuntimeError
+from ..control import BaseControl
+from ..hwmon_info import HwmonInfo
 from .context import InteractiveContext
-from .section_pwm_input import SectionPWMInputContext
 
 
 class SectionContext(InteractiveContext):
@@ -17,12 +19,14 @@ class SectionContext(InteractiveContext):
         match input:
             case None | 'x':
                 return self.parent
+            case 'd':
+                return self.__handle_device()
             case 'e':
                 return self.__handle_enable()
-            case 'i':
-                return SectionPWMInputContext(self.fan_config, self, section=self.section)
             case 'n':
                 return self.__handle_rename()
+            case 'p':
+                return self.__handle_pwm_input()
             case 'r':
                 return self.__handle_remove()
         return self
@@ -62,10 +66,10 @@ class SectionContext(InteractiveContext):
         enabled = self.fan_config.settings.is_enabled(self.section)
         builder.set('e', 'Disable' if enabled else 'Enable')
         builder.set('r', 'Remove')
-        builder.set('s', 'Sensor')
-        builder.set('i', 'PWM Input')
-        builder.set('d', 'Device')
-        builder.set('n', 'Set name')
+        builder.set('s', 'Set sensor')
+        builder.set('p', 'Set PWM Input')
+        builder.set('d', 'Set device')
+        builder.set('n', 'Change name')
 
 
     def __handle_enable(self):
@@ -101,3 +105,61 @@ class SectionContext(InteractiveContext):
             self.message('Section removed.', end='\n\n')
             return self.parent
         return self
+
+
+    def __handle_device(self):
+        pass
+
+
+    def __handle_pwm_input(self):
+        self.message()
+        hwmon_info = self.__select_hwmon(self.fan_config.settings.dev_base, validation_func=self.__hwmon_has_pwm_inputs)
+        if not hwmon_info:
+            return self
+        is_current_hwmon = hwmon_info.matches(self.fan_config.settings.dev_base)
+        current_pwm_input=self.fan_config.settings.get(self.section, 'pwm_input')
+
+        self.message()
+        self.message('Select new PWM Input:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
+        pwm_input = self.__select_pwm_input(
+            hwmon_info, 
+            is_current_hwmon=is_current_hwmon, 
+            current_pwm_input=current_pwm_input
+        )
+
+        if not pwm_input:
+            return self
+
+        self.fan_config.settings.set(self.section, 'pwm_input', pwm_input.input)
+        self.fan_config.settings.save()
+        self.message('Configuration updated.', end='\n\n')
+
+        return self
+    
+
+    def __select_hwmon(self, current, validation_func):
+        hwmon_list = self.hwmon_load(validation_func)
+        self.hwmon_list(hwmon_list)
+        return self.hwmon_select(hwmon_list, current)
+
+
+    def __hwmon_has_pwm_inputs(self, hwmon_entry):
+        return hwmon_entry.pwm_inputs
+
+
+    def __select_pwm_input(self, hwmon_info, is_current_hwmon, current_pwm_input):
+        choices = {}
+        builder = PromptBuilder(self.console)
+        builder.add_back()
+        for entry in hwmon_info.pwm_inputs:
+            highlight = True if is_current_hwmon and entry.matches(current_pwm_input) else False
+            key = builder.set_next(str(entry), highlight=highlight)
+            choices[key] = entry
+
+        selected = self.console.prompt_choices(builder, prompt='Select PWM Input')
+        match selected:
+            case None | 'x':
+                return None
+            case _:
+                return choices[selected]
+        return None

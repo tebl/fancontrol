@@ -2,8 +2,8 @@ import os, string
 from ..exceptions import *
 from ..control import BaseControl
 from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
-from .context import InteractiveContext
 from ..hwmon_info import HwmonInfo
+from .context import InteractiveContext
 
 
 class HWMONContext(InteractiveContext):
@@ -19,8 +19,8 @@ class HWMONContext(InteractiveContext):
             [self.SUBKEY_CHILD + 'Driver check', self.fan_config.settings.dev_name]
         ])
 
-        self.__load_hwmon()
-        self.__list_hwmon()
+        self.hwmon = self.hwmon_load(self.__is_suitable)
+        self.hwmon_list(self.hwmon)
 
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
         match input:
@@ -28,33 +28,12 @@ class HWMONContext(InteractiveContext):
                 return self.parent
             case _:
                 self.__change_hwmon(self.prompt_values[input])
-                return self
+                return self.parent
         return self
     
 
-    def __load_hwmon(self):
-        self.hwmon = []
-        for dirpath, dirnames, filenames in os.walk(BaseControl.BASE_PATH):
-            dirnames.sort()
-            for dir in dirnames:
-                hwmon = HwmonInfo(dir, os.path.join(BaseControl.BASE_PATH, dir))
-                if self.__is_suitable(hwmon):
-                    self.hwmon.append(hwmon)
-            break
-
-
     def __is_suitable(self, hwmon_entry):
         return hwmon_entry.devices and hwmon_entry.sensors and hwmon_entry.pwm_inputs
-
-
-    def __list_hwmon(self):
-        self.message('Listing hwmon:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
-        if self.hwmon:
-            for entry in self.hwmon:
-                self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=Logger.DEBUG)
-        else:
-            self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
-        self.message()
 
 
     def __get_prompt_builder(self):
@@ -85,9 +64,3 @@ class HWMONContext(InteractiveContext):
 
     def __str__(self):
         return 'hwmon'
-    
-
-class HWMONSelectedContext(InteractiveContext):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.hwmon = []
