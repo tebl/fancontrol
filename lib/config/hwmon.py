@@ -20,7 +20,7 @@ class HWMONContext(InteractiveContext):
         ])
 
         self.hwmon = self.hwmon_load(self.__is_suitable)
-        self.hwmon_list(self.hwmon)
+        self.hwmon_list(self.hwmon, current=self.fan_config.settings.dev_base)
 
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
         match input:

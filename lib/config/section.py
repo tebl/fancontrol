@@ -29,6 +29,8 @@ class SectionContext(InteractiveContext):
                 return self.__handle_pwm_input()
             case 'r':
                 return self.__handle_remove()
+            case 's':
+                return self.__handle_sensor()
         return self
 
 
@@ -108,68 +110,70 @@ class SectionContext(InteractiveContext):
 
 
     def __handle_device(self):
-        return self.__select_resource(prompt='Select PWM Input', read_attribute='pwm_inputs', write_attribute='pwm_input', validation_func=self.__hwmon_has_devices)
+        return self.__select_resource(prompt='Select device', read_attribute='devices', write_attribute='device', validation_func=self.__hwmon_has_devices)
 
 
-    def __select_resource(self, read_attribute, write_attribute, validation_func, prompt='Select'):
+    def __handle_pwm_input(self):
+        return self.__select_resource(prompt='Select PWM Input', read_attribute='pwm_inputs', write_attribute='pwm_input', validation_func=self.__hwmon_has_pwm_inputs)
+
+
+    def __handle_sensor(self):
+        return self.__select_resource(prompt='Select sensor', read_attribute='sensors', write_attribute='sensor', validation_func=self.__hwmon_has_sensors)
+
+
+    def __select_resource(self, prompt, read_attribute, write_attribute, validation_func):
+        current_value = self.fan_config.settings.get(self.section, write_attribute)
+        current_hwmon = self.__get_hwmon_from_value(current_value)
+        current_entry = self.__get_entry_from_value(current_value)
+
         self.message()
-        hwmon_info = self.__select_hwmon(self.fan_config.settings.dev_base, validation_func=validation_func)
+        hwmon_info = self.__select_hwmon(current_hwmon, validation_func=validation_func)
         if not hwmon_info:
             return self
 
         self.message()
-        pwm_input = self.hwmon_select_entry(
+        hwmon_entry = self.hwmon_select_entry(
             hwmon_info,
-            getattr(hwmon_info, read_attribute),
-            self.fan_config.settings.dev_base,
-            self.fan_config.settings.get(self.section, write_attribute),
-            prompt=prompt
+            hwmon_entries = getattr(hwmon_info, read_attribute),
+            current_hwmon = current_hwmon,
+            current_entry = current_entry,
+            prompt = prompt
         )
 
-        if not pwm_input:
+        if not hwmon_entry:
             return self
 
-        self.fan_config.settings.set(self.section, write_attribute, pwm_input.input)
+        self.fan_config.settings.set(self.section, write_attribute, hwmon_entry.get_input(dev_base=self.fan_config.settings.dev_base))
         self.fan_config.settings.save()
         self.message('Configuration updated.', end='\n\n')
 
         return self
+
+
+    def __select_hwmon(self, current, validation_func):
+        hwmon_list = self.hwmon_load(validation_func)
+        self.hwmon_list(hwmon_list, current)
+        return self.hwmon_select(hwmon_list, current)
+
+
+    def __get_hwmon_from_value(self, current_entry):
+        '''
+        Get current_hwmon
+        '''
+        return HwmonInfo.get_hwmon_from_value(current_entry, self.fan_config.settings.dev_base)
+
+
+    def __get_entry_from_value(self, current_entry):
+        return HwmonInfo.get_entry_from_value(current_entry, self.fan_config.settings.dev_base)
 
 
     def __hwmon_has_devices(self, hwmon_entry):
         return hwmon_entry.devices
-
-
-    def __handle_pwm_input(self):
-        self.message()
-        hwmon_info = self.__select_hwmon(self.fan_config.settings.dev_base, validation_func=self.__hwmon_has_pwm_inputs)
-        if not hwmon_info:
-            return self
-
-        self.message()
-        pwm_input = self.hwmon_select_entry(
-            hwmon_info,
-            hwmon_info.pwm_inputs,
-            self.fan_config.settings.dev_base,
-            self.fan_config.settings.get(self.section, 'pwm_input'),
-            prompt='Select PWM Input'
-        )
-
-        if not pwm_input:
-            return self
-
-        self.fan_config.settings.set(self.section, 'pwm_input', pwm_input.input)
-        self.fan_config.settings.save()
-        self.message('Configuration updated.', end='\n\n')
-
-        return self
-    
-
-    def __select_hwmon(self, current, validation_func):
-        hwmon_list = self.hwmon_load(validation_func)
-        self.hwmon_list(hwmon_list)
-        return self.hwmon_select(hwmon_list, current)
-
+   
 
     def __hwmon_has_pwm_inputs(self, hwmon_entry):
         return hwmon_entry.pwm_inputs
+
+
+    def __hwmon_has_sensors(self, hwmon_entry):
+        return hwmon_entry.sensors

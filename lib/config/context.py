@@ -122,11 +122,12 @@ class InteractiveContext(LoggerMixin):
             return hwmon_list
 
 
-    def hwmon_list(self, hwmon_list):
+    def hwmon_list(self, hwmon_list, current):
         self.message('Listing hwmon:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         if hwmon_list:
             for entry in hwmon_list:
-                self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=Logger.DEBUG)
+                styling = InteractiveLogger.DIRECT_HIGHLIGHT if entry.matches(current) else Logger.DEBUG
+                self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=styling)
         else:
             self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
         self.message()
