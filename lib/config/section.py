@@ -116,15 +116,14 @@ class SectionContext(InteractiveContext):
         hwmon_info = self.__select_hwmon(self.fan_config.settings.dev_base, validation_func=self.__hwmon_has_pwm_inputs)
         if not hwmon_info:
             return self
-        is_current_hwmon = hwmon_info.matches(self.fan_config.settings.dev_base)
-        current_pwm_input=self.fan_config.settings.get(self.section, 'pwm_input')
 
         self.message()
-        self.message('Select new PWM Input:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
-        pwm_input = self.__select_pwm_input(
-            hwmon_info, 
-            is_current_hwmon=is_current_hwmon, 
-            current_pwm_input=current_pwm_input
+        pwm_input = self.hwmon_select_entry(
+            hwmon_info,
+            hwmon_info.pwm_inputs,
+            self.fan_config.settings.dev_base,
+            self.fan_config.settings.get(self.section, 'pwm_input'),
+            prompt='Select PWM Input'
         )
 
         if not pwm_input:
@@ -145,21 +144,3 @@ class SectionContext(InteractiveContext):
 
     def __hwmon_has_pwm_inputs(self, hwmon_entry):
         return hwmon_entry.pwm_inputs
-
-
-    def __select_pwm_input(self, hwmon_info, is_current_hwmon, current_pwm_input):
-        choices = {}
-        builder = PromptBuilder(self.console)
-        builder.add_back()
-        for entry in hwmon_info.pwm_inputs:
-            highlight = True if is_current_hwmon and entry.matches(current_pwm_input) else False
-            key = builder.set_next(str(entry), highlight=highlight)
-            choices[key] = entry
-
-        selected = self.console.prompt_choices(builder, prompt='Select PWM Input')
-        match selected:
-            case None | 'x':
-                return None
-            case _:
-                return choices[selected]
-        return None

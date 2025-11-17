@@ -138,10 +138,42 @@ class InteractiveContext(LoggerMixin):
         builder.add_back()
         for hwmon_entry in hwmon_list:
             highlight = hwmon_entry.matches(current)
-            key = builder.set_next(hwmon_entry.get_title(), start_at=hwmon_entry.suggest_key(), highlight=highlight)
+            key = builder.set_next(hwmon_entry.get_title(include_summary=False), start_at=hwmon_entry.suggest_key(), highlight=highlight)
             choices[key] = hwmon_entry
         
         selected = self.console.prompt_choices(builder, prompt='Select hwmon')
+        match selected:
+            case None | 'x':
+                return None
+            case _:
+                return choices[selected]
+        return None
+
+
+    def hwmon_list_entries(self, hwmon_entries, current_value, is_current_hwmon=False):
+        self.message('Listing entries:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
+        if hwmon_entries:
+            for entry in hwmon_entries:
+                styling = InteractiveLogger.DIRECT_HIGHLIGHT if is_current_hwmon and entry.matches(current_value) else Logger.DEBUG
+                self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=styling)
+        else:
+            self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
+        self.message()
+
+
+    def hwmon_select_entry(self, hwmon_info, hwmon_entries, current_hwmon, current_entry, prompt='Select'):
+        is_current_hwmon = hwmon_info.matches(current_hwmon)
+        self.hwmon_list_entries(hwmon_entries, current_entry, is_current_hwmon)
+
+        choices = {}
+        builder = PromptBuilder(self.console)
+        builder.add_back()
+        for entry in hwmon_entries:
+            highlight = True if is_current_hwmon and entry.matches(current_entry) else False
+            key = builder.set_next(entry.get_title(include_summary=False), highlight=highlight)
+            choices[key] = entry
+
+        selected = self.console.prompt_choices(builder, prompt=prompt)
         match selected:
             case None | 'x':
                 return None
