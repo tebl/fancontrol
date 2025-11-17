@@ -108,7 +108,36 @@ class SectionContext(InteractiveContext):
 
 
     def __handle_device(self):
-        pass
+        return self.__select_resource(prompt='Select PWM Input', read_attribute='pwm_inputs', write_attribute='pwm_input', validation_func=self.__hwmon_has_devices)
+
+
+    def __select_resource(self, read_attribute, write_attribute, validation_func, prompt='Select'):
+        self.message()
+        hwmon_info = self.__select_hwmon(self.fan_config.settings.dev_base, validation_func=validation_func)
+        if not hwmon_info:
+            return self
+
+        self.message()
+        pwm_input = self.hwmon_select_entry(
+            hwmon_info,
+            getattr(hwmon_info, read_attribute),
+            self.fan_config.settings.dev_base,
+            self.fan_config.settings.get(self.section, write_attribute),
+            prompt=prompt
+        )
+
+        if not pwm_input:
+            return self
+
+        self.fan_config.settings.set(self.section, write_attribute, pwm_input.input)
+        self.fan_config.settings.save()
+        self.message('Configuration updated.', end='\n\n')
+
+        return self
+
+
+    def __hwmon_has_devices(self, hwmon_entry):
+        return hwmon_entry.devices
 
 
     def __handle_pwm_input(self):
