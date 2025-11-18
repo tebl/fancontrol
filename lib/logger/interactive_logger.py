@@ -29,6 +29,7 @@ class PromptBuilder:
         self.data = {}
         self.data_highlight = {}
         self.logger = interactive_logger
+        self.default_key = None
 
         # Setting up valid option keys, then use that to build list of 
         # available keys.
@@ -42,14 +43,14 @@ class PromptBuilder:
             self.set(key, value)
 
 
-    def get(self, key, default=None):
+    def get(self, key, default_on_missing=None):
         '''
         Get specified prompt if it exists. A default value can be specified in
         case it doesn't, but note that keys will also remove any None-values.
         '''
         if key in self.data:
             return self.data[key]
-        return default
+        return default_on_missing
 
 
     def set(self, key, value=None, highlight=None, add_missing_key=False, reorder=False):
@@ -81,6 +82,23 @@ class PromptBuilder:
         # Set the actual value
         self.data[key] = value
         return self
+    
+
+    def set_default(self, key):
+        '''
+        Prompt builder can be used to suggest a default key option, this is
+        handy when we either only have a single option available - or - we
+        want to default to the currently set value.
+        '''
+        if key not in self.data:
+            raise ValueError('key {} is not set'.format(key))
+        self.default_key = key
+
+
+    def get_default(self):
+        '''
+        '''
+        return self.default_key
 
 
     def add_exit(self, value='Exit', highlight=True, reorder=False):
@@ -294,8 +312,12 @@ class InteractiveLogger(ConsoleLogger):
         self.log_direct(self.get_prompt(prompt), styling=self.DIRECT_PROMPT, end='')
         while True:
             result = self.get_character()
-            if result == self.BACKSPACE and 'x' in prompt_builder:
+            if result == self.BACKSPACE:
                 result = 'x'
+
+            default = prompt_builder.get_default()
+            if result == self.LF and default is not None:
+                result = default
                 
             if result in prompt_builder:
                 self.log_direct(result, styling=self.DIRECT_VALUE)

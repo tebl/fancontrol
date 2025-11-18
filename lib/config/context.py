@@ -136,12 +136,20 @@ class InteractiveContext(LoggerMixin):
     def hwmon_select(self, hwmon_list, current):
         choices = {}
         builder = PromptBuilder(self.console)
-        builder.add_back()
+        builder.add_cancel()
         for hwmon in hwmon_list:
-            highlight = hwmon.matches(current)
-            key = builder.set_next(hwmon.get_title(include_summary=False), start_at=hwmon.suggest_key(), highlight=highlight)
+            is_current = hwmon.matches(current)
+            key = builder.set_next(hwmon.get_title(include_summary=False), start_at=hwmon.suggest_key(), highlight=is_current)
             choices[key] = hwmon
-        
+            if is_current:
+                builder.set_default(key)
+
+        # Automatically use first choice as default if we don't have any other
+        # options. This means that we can just hit ENTER and be done with it.
+        if len(choices) == 1 and builder.get_default() is None:
+            first_key = next(iter(choices.keys()))
+            builder.set_default(first_key)
+
         selected = self.console.prompt_choices(builder, prompt='Select hwmon')
         match selected:
             case None | 'x':
@@ -162,16 +170,24 @@ class InteractiveContext(LoggerMixin):
         self.message()
 
 
-    def hwmon_select_entry(self, hwmon_entries, current_hwmon, current_entry, prompt='Select'):
+    def hwmon_select_entry(self, hwmon_entries, current_hwmon, current_entry, prompt='Select resource'):
         self.hwmon_list_entries(hwmon_entries, current_hwmon, current_entry)
 
         choices = {}
         builder = PromptBuilder(self.console)
-        builder.add_back()
+        builder.add_cancel()
         for entry in hwmon_entries:
-            highlight = True if entry.matches(current_hwmon, current_entry) else False
-            key = builder.set_next(entry.get_title(include_summary=False), start_at=entry.suggest_key(), highlight=highlight)
+            is_current = True if entry.matches(current_hwmon, current_entry) else False
+            key = builder.set_next(entry.get_title(include_summary=False), start_at=entry.suggest_key(), highlight=is_current)
             choices[key] = entry
+            if is_current:
+                builder.set_default(key)
+
+        # Automatically use first choice as default if we don't have any other
+        # options. This means that we can just hit ENTER and be done with it.
+        if len(choices) == 1 and builder.get_default() is None:
+            first_key = next(iter(choices.keys()))
+            builder.set_default(first_key)
 
         selected = self.console.prompt_choices(builder, prompt=prompt)
         match selected:
