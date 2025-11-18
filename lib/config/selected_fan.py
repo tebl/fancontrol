@@ -1,4 +1,5 @@
 from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder
+from .. import utils
 from .context import InteractiveContext
 
 
@@ -11,13 +12,13 @@ class SelectedFanContext(InteractiveContext):
     def interact(self):
         self.summarise([
             ['Controlled by', self.fan.device],
-            [self.SUBKEY_INDENT + 'Minimum', self.format_pwm(self.fan.pwm_min)],
-            [self.SUBKEY_INDENT + 'Maximum', self.format_pwm(self.fan.pwm_max)],
-            [self.SUBKEY_INDENT + 'Start', self.format_pwm(self.fan.pwm_start)],
-            [self.SUBKEY_INDENT + 'Stop', self.format_pwm(self.fan.pwm_stop)],
+            [self.SUBKEY_INDENT + 'Minimum', utils.format_pwm(self.fan.pwm_min)],
+            [self.SUBKEY_INDENT + 'Maximum', utils.format_pwm(self.fan.pwm_max)],
+            [self.SUBKEY_INDENT + 'Start', utils.format_pwm(self.fan.pwm_start)],
+            [self.SUBKEY_INDENT + 'Stop', utils.format_pwm(self.fan.pwm_stop)],
             ['Based on', self.fan.sensor],
-            [self.SUBKEY_INDENT + 'Minimum', self.format_temp(self.fan.sensor_min)],
-            [self.SUBKEY_INDENT + 'Maximum', self.format_temp(self.fan.sensor_max)]
+            [self.SUBKEY_INDENT + 'Minimum', utils.format_celsius(self.fan.sensor_min)],
+            [self.SUBKEY_INDENT + 'Maximum', utils.format_celsius(self.fan.sensor_max)]
         ])
 
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self.fan.get_title())

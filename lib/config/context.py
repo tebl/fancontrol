@@ -46,7 +46,8 @@ class InteractiveContext(LoggerMixin):
         '''
         Used near the start of a context interaction to summarise common values
         used in this section. List should have the structure of (key, value)
-        and the key is used so that we align all values on the screen.
+        and the key is used so that we align all values on the screen. An optional
+        third value can also be included to set formatter styling.
         '''
         if not list:
             return
@@ -56,8 +57,14 @@ class InteractiveContext(LoggerMixin):
             styling = Logger.DEBUG
             if params:
                 styling = params.pop(0)
-            self.message(prefix + self.format_key_value(key, value, key_pad=key_pad, sep=sep), styling=styling)
+            self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, sep=sep), styling=styling)
         self.message()
+
+
+    def __format_summary_entry(self, key, value, key_pad=16, sep=' '):
+        if key_pad:
+            return (key + sep).ljust(key_pad) + str(value)
+        return (key + sep) + str(value)
 
 
     def confirm_exit(self):
@@ -70,20 +77,6 @@ class InteractiveContext(LoggerMixin):
                 return self.parent
             return self
         return self.parent
-
-
-    def format_key_value(self, key, value, key_pad=16, sep=' '):
-        if key_pad:
-            return (key + sep).ljust(key_pad) + str(value)
-        return (key + sep) + str(value)
-
-
-    def format_pwm(self, value):
-        return '({}/255)'.format(str(value).rjust(3))
-    
-
-    def format_temp(self, value):
-        return str(value) + self.UNIT_CELSIUS
 
 
     def toggle_from_list(self, list, current, default):
@@ -112,6 +105,11 @@ class InteractiveContext(LoggerMixin):
 
 
     def hwmon_load(self, validation_func=None):
+        '''
+        Index sysfs for registered hwmon-entries, results are returned as a
+        list of HwmonInfo instances. An optional validation method can be
+        supplied in order to make decisions on which entries to include.
+        '''
         hwmon_list = []
         for dirpath, dirnames, filenames in os.walk(BaseControl.BASE_PATH):
             dirnames.sort()
@@ -123,6 +121,10 @@ class InteractiveContext(LoggerMixin):
 
 
     def hwmon_list(self, hwmon_list, current):
+        '''
+        List instances of HwmonInfo, a suitable list can be loaded using
+        hwmon_load-method.
+        '''
         self.message('Listing hwmon:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         if hwmon_list:
             for hwmon in hwmon_list:
@@ -134,6 +136,10 @@ class InteractiveContext(LoggerMixin):
 
 
     def hwmon_select(self, hwmon_list, current):
+        '''
+        Prompt the user to select an instance of HwmonInfo, a suitable list can
+        be loaded using hwmon_load-method.
+        '''
         choices = {}
         builder = PromptBuilder(self.console)
         builder.add_cancel()

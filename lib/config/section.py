@@ -3,6 +3,7 @@ from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuil
 from ..exceptions import ControlRuntimeError
 from ..control import BaseControl
 from ..hwmon_info import HwmonInfo
+from .. import utils
 from .context import InteractiveContext
 
 
@@ -39,13 +40,13 @@ class SectionContext(InteractiveContext):
             ['Name', self.section],
             self.__summarise_status(),
             ["Device", config.get(self.section, 'device')],
-            [self.SUBKEY_CHILD + "Minimum", self.format_pwm(config.getint(self.section, 'pwm_min'))],
-            [self.SUBKEY_CHILD + "Maximum", self.format_pwm(config.getint(self.section, 'pwm_max'))],
-            [self.SUBKEY_CHILD + "Start", self.format_pwm(config.getint(self.section, 'pwm_start'))],
-            [self.SUBKEY_CHILD + "Stop", self.format_pwm(config.getint(self.section, 'pwm_stop'))],
+            [self.SUBKEY_CHILD + "Minimum", utils.format_pwm(config.getint(self.section, 'pwm_min'))],
+            [self.SUBKEY_CHILD + "Maximum", utils.format_pwm(config.getint(self.section, 'pwm_max'))],
+            [self.SUBKEY_CHILD + "Start", utils.format_pwm(config.getint(self.section, 'pwm_start'))],
+            [self.SUBKEY_CHILD + "Stop", utils.format_pwm(config.getint(self.section, 'pwm_stop'))],
             ["Sensor", config.get(self.section, 'sensor')],
-            [self.SUBKEY_CHILD + "Minimum", self.format_temp(config.getint(self.section, 'sensor_min'))],
-            [self.SUBKEY_CHILD + "Maximum", self.format_temp(config.getint(self.section, 'sensor_max'))],
+            [self.SUBKEY_CHILD + "Minimum", utils.format_celsius(config.getint(self.section, 'sensor_min'))],
+            [self.SUBKEY_CHILD + "Maximum", utils.format_celsius(config.getint(self.section, 'sensor_max'))],
             ["PWM Input", config.get(self.section, 'pwm_input')]
         ])
     
