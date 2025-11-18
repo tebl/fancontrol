@@ -122,9 +122,14 @@ class SectionContext(InteractiveContext):
 
 
     def __select_resource(self, prompt, read_attribute, write_attribute, validation_func):
+        '''
+        Lists hwmon-instances, allowing you to choose one of them as well as
+        subsequently prompting you to choose one of the resources provided by
+        it.
+        '''
         current_value = self.fan_config.settings.get(self.section, write_attribute)
-        current_hwmon = self.__get_hwmon_from_value(current_value)
-        current_entry = self.__get_entry_from_value(current_value)
+        current_hwmon = HwmonInfo.get_hwmon_from_value(current_value, self.fan_config.settings.dev_base)
+        current_entry = HwmonInfo.get_entry_from_value(current_value, self.fan_config.settings.dev_base)
 
         self.message()
         hwmon_info = self.__select_hwmon(current_hwmon, validation_func=validation_func)
@@ -133,7 +138,6 @@ class SectionContext(InteractiveContext):
 
         self.message()
         hwmon_entry = self.hwmon_select_entry(
-            hwmon_info,
             hwmon_entries = getattr(hwmon_info, read_attribute),
             current_hwmon = current_hwmon,
             current_entry = current_entry,
@@ -151,20 +155,14 @@ class SectionContext(InteractiveContext):
 
 
     def __select_hwmon(self, current, validation_func):
+        '''
+        Loads information from hwmon, gives a formatted listing before allowing
+        you to choose one of them. Validation function can be passed as
+        reference in order to qualify hwmon-candidates.
+        '''
         hwmon_list = self.hwmon_load(validation_func)
         self.hwmon_list(hwmon_list, current)
         return self.hwmon_select(hwmon_list, current)
-
-
-    def __get_hwmon_from_value(self, current_entry):
-        '''
-        Get current_hwmon
-        '''
-        return HwmonInfo.get_hwmon_from_value(current_entry, self.fan_config.settings.dev_base)
-
-
-    def __get_entry_from_value(self, current_entry):
-        return HwmonInfo.get_entry_from_value(current_entry, self.fan_config.settings.dev_base)
 
 
     def __hwmon_has_devices(self, hwmon_entry):

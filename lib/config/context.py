@@ -125,9 +125,9 @@ class InteractiveContext(LoggerMixin):
     def hwmon_list(self, hwmon_list, current):
         self.message('Listing hwmon:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         if hwmon_list:
-            for entry in hwmon_list:
-                styling = InteractiveLogger.DIRECT_HIGHLIGHT if entry.matches(current) else Logger.DEBUG
-                self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=styling)
+            for hwmon in hwmon_list:
+                styling = InteractiveLogger.DIRECT_HIGHLIGHT if hwmon.matches(current) else Logger.DEBUG
+                self.message(self.SUBKEY_INDENT + hwmon.get_title(include_summary=True), styling=styling)
         else:
             self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
         self.message()
@@ -137,10 +137,10 @@ class InteractiveContext(LoggerMixin):
         choices = {}
         builder = PromptBuilder(self.console)
         builder.add_back()
-        for hwmon_entry in hwmon_list:
-            highlight = hwmon_entry.matches(current)
-            key = builder.set_next(hwmon_entry.get_title(include_summary=False), start_at=hwmon_entry.suggest_key(), highlight=highlight)
-            choices[key] = hwmon_entry
+        for hwmon in hwmon_list:
+            highlight = hwmon.matches(current)
+            key = builder.set_next(hwmon.get_title(include_summary=False), start_at=hwmon.suggest_key(), highlight=highlight)
+            choices[key] = hwmon
         
         selected = self.console.prompt_choices(builder, prompt='Select hwmon')
         match selected:
@@ -151,27 +151,26 @@ class InteractiveContext(LoggerMixin):
         return None
 
 
-    def hwmon_list_entries(self, hwmon_entries, current_value, is_current_hwmon=False):
+    def hwmon_list_entries(self, hwmon_entries, current_hwmon, current_value):
         self.message('Listing entries:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         if hwmon_entries:
             for entry in hwmon_entries:
-                styling = InteractiveLogger.DIRECT_HIGHLIGHT if is_current_hwmon and entry.matches(current_value) else Logger.DEBUG
+                styling = InteractiveLogger.DIRECT_HIGHLIGHT if entry.matches(current_hwmon, current_value) else Logger.DEBUG
                 self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=styling)
         else:
             self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
         self.message()
 
 
-    def hwmon_select_entry(self, hwmon_info, hwmon_entries, current_hwmon, current_entry, prompt='Select'):
-        is_current_hwmon = hwmon_info.matches(current_hwmon)
-        self.hwmon_list_entries(hwmon_entries, current_entry, is_current_hwmon)
+    def hwmon_select_entry(self, hwmon_entries, current_hwmon, current_entry, prompt='Select'):
+        self.hwmon_list_entries(hwmon_entries, current_hwmon, current_entry)
 
         choices = {}
         builder = PromptBuilder(self.console)
         builder.add_back()
         for entry in hwmon_entries:
-            highlight = True if is_current_hwmon and entry.matches(current_entry) else False
-            key = builder.set_next(entry.get_title(include_summary=False), highlight=highlight)
+            highlight = True if entry.matches(current_hwmon, current_entry) else False
+            key = builder.set_next(entry.get_title(include_summary=False), start_at=entry.suggest_key(), highlight=highlight)
             choices[key] = entry
 
         selected = self.console.prompt_choices(builder, prompt=prompt)
