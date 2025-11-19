@@ -2,6 +2,7 @@ import os
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder, PromptValidationException
 from ..exceptions import ControlRuntimeError
 from ..hwmon_info import HwmonInfo
+from ..control import BaseControl
 from .. import utils
 from .context import InteractiveContext
 
@@ -101,16 +102,16 @@ class SectionContext(InteractiveContext):
             items = []
 
         self.add_summary_value(items, 'Name', self.section)
-        self.add_summary_config(items, 'Device', 'device')
+        self.add_summary_config(items, 'Device', 'device', validation_func=self.__validate_resource)
         self.__add_status(items)
         self.add_summary_config(items, self.SUBKEY_CHILD + "Minimum", 'pwm_min', format_func=utils.format_pwm, validation_func=self.__validate_pwm_min, format_dict={ 'key': self.KEY_DEVICE_MIN })
         self.add_summary_config(items, self.SUBKEY_CHILD + "Maximum", 'pwm_max', format_func=utils.format_pwm, validation_func=self.__validate_pwm_max, format_dict={ 'key': self.KEY_DEVICE_MAX })
         self.add_summary_config(items, self.SUBKEY_CHILD + "Start", 'pwm_start', format_func=utils.format_pwm, validation_func=self.validate_pwm, format_dict={ 'key': self.KEY_DEVICE_START })
         self.add_summary_config(items, self.SUBKEY_CHILD + "Stop", 'pwm_stop', format_func=utils.format_pwm, validation_func=self.__validate_pwm_stop, format_dict={ 'key': self.KEY_DEVICE_STOP })
-        self.add_summary_config(items, 'Sensor', 'sensor')
+        self.add_summary_config(items, 'Sensor', 'sensor', validation_func=self.__validate_resource)
         self.add_summary_config(items, self.SUBKEY_CHILD + "Minimum", 'sensor_min', format_func=utils.format_celsius, validation_func=self.__validate_sensor_min, format_dict={ 'key': self.KEY_SENSOR_MIN })
         self.add_summary_config(items, self.SUBKEY_CHILD + "Maximum", 'sensor_max', format_func=utils.format_celsius, validation_func=self.validate_temp, format_dict={ 'key': self.KEY_SENSOR_MAX })
-        self.add_summary_config(items, 'PWM Input', 'pwm_input')
+        self.add_summary_config(items, 'PWM Input', 'pwm_input', validation_func=self.__validate_resource)
         return super().summary(items, sep, prefix)
 
 
@@ -141,6 +142,19 @@ class SectionContext(InteractiveContext):
         value = self.validate_temp(value)
         if extended and value >= self.fan_config.settings.getint(self.section, 'sensor_max'):
             raise PromptValidationException('must be less than Sensor Max')
+        return value
+
+
+    def __validate_resource(self, value, extended=False):
+        value = self.validate_string(value)
+        hwmon_name = HwmonInfo.get_hwmon_from_value(value, self.fan_config.settings.dev_base)
+        hwmon_path = os.path.join(BaseControl.BASE_PATH, hwmon_name)
+        if not os.path.isdir(hwmon_path):
+            raise PromptValidationException('hwmon not found' + hwmon_path)
+        entry_name = HwmonInfo.get_entry_from_value(value, self.fan_config.settings.dev_base)
+        entry_path = os.path.join(hwmon_path, entry_name)
+        if not os.path.isfile(entry_path):
+            raise PromptValidationException('hwmon resource not found')
         return value
 
 

@@ -75,6 +75,8 @@ class InteractiveContext(LoggerMixin):
     def add_summary_config(self, summary, title, config_key, format_func=None, validation_func=None, format_dict=None):
         value = self.fan_config.settings.get(self.section, config_key)
         error = None
+        if not format_dict:
+            format_dict = {}
 
         try:
             if validation_func:
@@ -84,12 +86,11 @@ class InteractiveContext(LoggerMixin):
         except PromptValidationException as e:
             error = str(e)
 
-        result = [title, value]
-        if format_dict:
-            result.append(format_dict)
-        summary.append(result)
         if error:
-            summary.append([self.SUBKEY_INDENT + self.SUBKEY_CHILD + 'ERROR', error, { 'styling': Logger.ERROR }])
+            format_dict['styling'] = Logger.ERROR
+        summary.append([title, value, format_dict])
+        if error:
+            summary.append([self.SUBKEY_INDENT + self.SUBKEY_CHILD + 'ERROR', error, { 'styling': InteractiveLogger.DIRECT_HIGHLIGHT }])
 
 
     def validate_number(self, value, extended=True):
@@ -114,6 +115,12 @@ class InteractiveContext(LoggerMixin):
                 raise PromptValidationException('less than ' + str(Fan.PWM_MIN))
             if value > Fan.PWM_MAX:
                 raise PromptValidationException('greater than ' + str(Fan.PWM_MAX))
+        return value
+
+
+    def validate_string(self, value, extended=True):
+        if not value:
+            raise PromptValidationException('value not set')
         return value
 
 
