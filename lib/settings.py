@@ -98,7 +98,7 @@ class Settings(LoggerMixin):
         value = str(value)
         if not self.have_section(section):
             self.check_allowed_chars(section)
-            self.config[section] = {}
+            self.create_section(section)
             self.changed = True
         if not self.have_key(section, key):
             self.check_allowed_chars(key)
@@ -111,6 +111,28 @@ class Settings(LoggerMixin):
 
     def have_section(self, section):
         return section in self.config.sections()
+    
+
+    def create_section(self, section):
+        if self.have_section(section):
+            return
+        self.config[section] = {}
+        self.set(section, 'enabled', Settings.DEFAULT_ENABLED)
+        self.set(section, 'sensor', '')
+        self.set(section, 'sensor_min', Settings.DEFAULT_SENSOR_MIN)
+        self.set(section, 'sensor_max', Settings.DEFAULT_SENSOR_MAX)
+        self.set(section, 'device', '')
+        self.set(section, 'pwm_min', Settings.DEFAULT_PWM_MIN)
+        self.set(section, 'pwm_max', Settings.DEFAULT_PWM_MAX)
+        self.set(section, 'pwm_start', Settings.DEFAULT_PWM_START)
+        self.set(section, 'pwm_stop', Settings.DEFAULT_PWM_STOP)
+        self.set(section, 'pwm_input', '')
+
+
+    def remove_section(self, section):
+        if not self.have_section(section):
+            return
+        self.config.remove_section(section)
 
 
     def have_key(self, section, key):
@@ -148,7 +170,6 @@ class Settings(LoggerMixin):
         self.config.remove_section(section)
         return True
         
-
 
     def set_enabled(self, section, value):
         value = 'yes' if value else 'no'

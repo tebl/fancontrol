@@ -62,7 +62,11 @@ class TestSettings(unittest.TestCase):
     def test_sections(self):
         s = Settings(self.config_path, self.logger, auto_create=False)
         s.set('test_section', 'test', 'testvalue')
+        
+        # Check that this also created some default values
+        self.assertTrue(s.get('test_section', 'enabled'))
 
+        # Examine main settings
         self.assertTrue(s.have_section(s.SETTINGS))
         self.assertTrue(s.have_key(s.SETTINGS, 'log_level'))
 
@@ -78,6 +82,10 @@ class TestSettings(unittest.TestCase):
         # this also eliminates the Settings-entry itself.
         self.assertEqual(s.sections(filter_special=False, only_enabled=False), [s.SETTINGS, 'test_section'])
         self.assertEqual(s.sections(filter_special=False, only_enabled=True), [])
+
+        # Finally, delete the remaining section
+        s.remove_section('test_section')
+        self.assertEqual(s.sections(filter_special=True, only_enabled=False), [])
 
 
     def test_rename_section(self, section='test_section', section_new='test_second', section_existing='test_existing', test_key='test', test_value='test value'):

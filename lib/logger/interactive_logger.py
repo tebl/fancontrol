@@ -24,6 +24,10 @@ class PromptBuilder:
     KEYSTRING_NATURAL = string.digits[1:] + '0' + string.ascii_lowercase
     DEFAULT_KEYSTRING = KEYSTRING_NATURAL
 
+    CANCEL = "Cancel"
+    BACK = "Back"
+    EXIT = "Exit"
+
 
     def __init__(self, interactive_logger, init_with=[], allowed_keystring=None):
         self.data = {}
@@ -97,20 +101,22 @@ class PromptBuilder:
 
     def get_default(self):
         '''
+        Get configured default key, used when substituting certain key-presses
+        for actions.
         '''
         return self.default_key
 
 
-    def add_exit(self, value='Exit', highlight=True, reorder=False):
-        return self.set('x', value=value, highlight=highlight, reorder=reorder)
+    def add_exit(self, label=EXIT, highlight=True, reorder=False):
+        return self.set('x', value=label, highlight=highlight, reorder=reorder)
 
 
     def add_cancel(self, highlight=True, reorder=False):
-        return self.add_exit(value='Cancel', highlight=highlight, reorder=reorder)
+        return self.add_exit(label=self.CANCEL, highlight=highlight, reorder=reorder)
 
 
     def add_back(self, highlight=True, reorder=False):
-        return self.add_exit(value='Back', highlight=highlight, reorder=reorder)
+        return self.add_exit(label=self.BACK, highlight=highlight, reorder=reorder)
 
 
     def set_next(self, value, start_at=None, highlight=None):
@@ -132,7 +138,6 @@ class PromptBuilder:
                 if char in self.available_keys:
                     self.available_keys.remove(char)
                     return char
-
         return self.available_keys.pop(0)
 
 

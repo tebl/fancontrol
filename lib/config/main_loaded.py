@@ -1,4 +1,5 @@
-from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
+import uuid
+from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from ..exceptions import ConfigurationError
 from .context import InteractiveContext
 from .fans_loaded import FansLoadedContext
@@ -33,6 +34,8 @@ class LoadedContext(InteractiveContext):
             case 'c':
                 if self.__attempt_load_fans():
                     return FansLoadedContext(self.fan_config, parent=None)
+            case 'n':
+                return SectionContext(self.fan_config, self, section=str(uuid.uuid4())).create()
             case _:
                 section = self.prompt_values[input]
                 self.message('Fan definition {} selected.'.format(section), end='\n\n')
@@ -69,6 +72,7 @@ class LoadedContext(InteractiveContext):
         builder = PromptBuilder(self.console)
         self.prompt_values = {}
         builder.set('c', 'Load fan configuration', highlight=True, reorder=True)
+        builder.set('n', 'New fan configuration', highlight=True, reorder=True)
         builder.add_exit(reorder=True)
         for section in self.sections:
             key = builder.set_next(section)

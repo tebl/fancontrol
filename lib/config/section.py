@@ -26,38 +26,72 @@ class SectionContext(InteractiveContext):
         self.section = section
 
 
+    def create(self):
+        self.fan_config.settings.create_section(self.section)
+        self.fan_config.settings.set(self.section, 'enabled', 'no')
+        self.fan_config.settings.save()
+
+        while True:
+            self.summary()
+
+            input = self.console.prompt_choices(self.__get_prompt_builder(), prompt='Create ' + self.section)
+            result, key = self.__match_actions(input)
+            if result == self:
+                continue
+            elif key == 'x':
+                input = self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt='Keep ' + self.section)
+                match input:
+                    case None | 'x':
+                        # Cancel in this context means keeping editing new fan
+                        continue
+                    case 'y':
+                        self.message('Configuration updated.', end='\n\n')
+                        return self.parent
+                    case 'n':
+                        self.message('Configuration updated.', end='\n\n')
+                        self.fan_config.settings.remove_section(self.section)
+                        self.fan_config.settings.save()
+                        return self.parent
+            return result
+
+
     def interact(self):
         self.summary()
 
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self.section)
+        result, key = self.__match_actions(input)
+        return result
+
+
+    def __match_actions(self, input):
         match input:
             case None | 'x':
-                return self.parent
+                return (self.parent, 'x')
             case self.KEY_DEVICE_MIN:
-                return self.__set_value('Device Min', 'pwm_min', validation_func=self.__validate_pwm_min)
+                return (self.__set_value('Device Min', 'pwm_min', validation_func=self.__validate_pwm_min), input)
             case self.KEY_DEVICE_MAX:
-                return self.__set_value('Device Max', 'pwm_max', validation_func=self.__validate_pwm_max)
+                return (self.__set_value('Device Max', 'pwm_max', validation_func=self.__validate_pwm_max), input)
             case self.KEY_DEVICE_START:
-                return self.__set_value('Device Min', 'pwm_start', validation_func=self.validate_pwm)
+                return (self.__set_value('Device Min', 'pwm_start', validation_func=self.validate_pwm), input)
             case self.KEY_DEVICE_STOP:
-                return self.__set_value('Device Max', 'pwm_stop', validation_func=self.validate_pwm)
+                return (self.__set_value('Device Max', 'pwm_stop', validation_func=self.validate_pwm), input)
             case self.KEY_SENSOR_MIN:
-                return self.__set_value('Sensor Min', 'sensor_min', validation_func=self.validate_temp)
+                return (self.__set_value('Sensor Min', 'sensor_min', validation_func=self.validate_temp), input)
             case self.KEY_SENSOR_MAX:
-                return self.__set_value('Sensor Max', 'sensor_max', validation_func=self.validate_temp)
+                return (self.__set_value('Sensor Max', 'sensor_max', validation_func=self.validate_temp), input)
             case self.KEY_DEVICE:
-                return self.__handle_device()
+                return (self.__handle_device(), input)
             case self.KEY_ENABLE:
-                return self.__handle_enable()
+                return (self.__handle_enable(), input)
             case self.KEY_NAME:
-                return self.__handle_rename()
+                return (self.__handle_rename(), input)
             case self.KEY_SENSE:
-                return self.__handle_pwm_input()
+                return (self.__handle_pwm_input(), input)
             case self.KEY_DELETE:
-                return self.__handle_remove()
+                return (self.__handle_remove(), input)
             case self.KEY_SENSOR:
-                return self.__handle_sensor()
-        return self
+                return (self.__handle_sensor(), input)
+        return (self, None)
 
 
     def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
@@ -127,7 +161,6 @@ class SectionContext(InteractiveContext):
                 self.fan_config.settings.set(self.section, key, input)
                 self.fan_config.settings.save()
                 self.message('Configuration updated.', end='\n\n')
-
             except ControlRuntimeError as e:
                 self.error('Renaming failed with error ({})'.format(e.message), end='\n\n')
         return self
@@ -186,6 +219,7 @@ class SectionContext(InteractiveContext):
         self.message('Removing {}:'.format(str(self.section)), styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt='Confirm') == 'y':
             self.fan_config.settings.remove_section(self.section)
+            self.fan_config.settings.save()
             self.message('Section removed.', end='\n\n')
             return self.parent
         return self
