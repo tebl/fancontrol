@@ -241,7 +241,21 @@ class ConfirmPromptBuilder(PromptBuilder):
         self.set('n', 'No')
         if include_cancel:
             self.set('x', 'Cancel', highlight=True)
-        
+
+
+class PromptValidationException(Exception):
+    '''
+    Used when calls to from InteractiveLogger prompts fail validation, ie. the
+    user input some value that doesn't appear to have the correct format.
+    '''
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
+
+    
+    def __str__(self):
+        return self.message
+
 
 class InteractiveLogger(ConsoleLogger):
     '''
@@ -309,7 +323,7 @@ class InteractiveLogger(ConsoleLogger):
 
     def prompt_choices(self, prompt_builder, prompt='Select option'):
         prompt_builder.print_legend()
-        self.log_direct(self.get_prompt(prompt), styling=self.DIRECT_PROMPT, end='')
+        self.log_prompt(prompt)
         while True:
             result = self.get_character()
             if result == self.BACKSPACE:
@@ -325,16 +339,21 @@ class InteractiveLogger(ConsoleLogger):
 
 
     def prompt_character(self, prompt):
-        self.log_direct(self.get_prompt(prompt), styling=self.DIRECT_PROMPT, end='')
+        self.log_prompt(prompt)
         result = self.get_character()
         self.log_direct(result, styling=self.DIRECT_VALUE)
         return result
 
 
     def prompt_input(self, prompt, allow_blank=True, validation_func=None):
+        '''
+        Prompt the user for input, if provided a custom validation function can
+        be provided. Validation-function will be considered succesful if it
+        completes without raising a PromptValidationException.
+        '''
+        last_error = None
         while True:
-            self.log_direct(self.get_prompt(prompt), styling=self.DIRECT_PROMPT, end='')
-
+            self.log_prompt(prompt, last_error)
             try:
                 self.formatted_start('in_value')
                 result = input()
@@ -344,7 +363,14 @@ class InteractiveLogger(ConsoleLogger):
             if allow_blank and result == '':
                 return None
             if validation_func is not None:
-                if validation_func(result):
+                valid = False
+                try:
+                    validation_func(result)
+                    valid = True
+                except PromptValidationException as ve:
+                    last_error = str(ve)
+
+                if valid:
                     return result
                 else:
                     self.clear_previous_line()
@@ -353,10 +379,13 @@ class InteractiveLogger(ConsoleLogger):
             return result
 
 
-    def get_prompt(self, prompt):
-        if prompt:
-            return '{}: '.format(prompt)
-        return ''
+    def log_prompt(self, prompt, last_error=None):
+        if last_error is None:
+            self.log_direct('{}: '.format(prompt), styling=self.DIRECT_PROMPT, end='')
+            return
+        self.log_direct(prompt + ' (', styling=self.DIRECT_PROMPT, end='')
+        self.log_direct(last_error, styling=Logger.ERROR, end='')
+        self.log_direct('): ', styling=self.DIRECT_PROMPT, end='')
 
 
     def get_character(self):

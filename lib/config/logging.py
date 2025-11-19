@@ -13,7 +13,7 @@ class LoggingContext(InteractiveContext):
 
 
     def interact(self):
-        self.summarise([
+        self.summary([
             [self.LOG_USING, self.fan_config.settings.log_using],
             [self.SUBKEY_CHILD + self.LOG_FORMATTING, self.fan_config.settings.log_formatter],
             [self.SUBKEY_CHILD + self.LOG_LEVEL, self.fan_config.settings.log_level],

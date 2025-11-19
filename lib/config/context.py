@@ -1,13 +1,14 @@
-import os
-from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder
-from ..control import BaseControl
+import math, os
+from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder, PromptValidationException
+from ..control import BaseControl, Fan
 from ..hwmon_info import HwmonInfo
 from ..logger import PromptBuilder
+from .. import utils
+
 
 class InteractiveContext(LoggerMixin):
     SUBKEY_INDENT = '  '
     SUBKEY_CHILD =  '\u21B3 '
-    UNIT_CELSIUS = '°C'
 
     CONFIRM_EXIT = False 
 
@@ -42,7 +43,7 @@ class InteractiveContext(LoggerMixin):
         self.message(message, styling=styling, end=end)
 
 
-    def summarise(self, list, sep=': ', prefix=SUBKEY_INDENT):
+    def summary(self, list=None, sep=': ', prefix=SUBKEY_INDENT):
         '''
         Used near the start of a context interaction to summarise common values
         used in this section. List should have the structure of (key, value)
@@ -53,17 +54,86 @@ class InteractiveContext(LoggerMixin):
             return
         self.message('Summary:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         key_pad = len(max([key for key, value, *params in list], key=len)) + len(sep)
+        value_pad = len(max([value for key, value, *params in list], key=len)) + len(sep)
+        value_pad = utils.pad_number(value_pad)
+
         for key, value, *params in list:
-            styling = Logger.DEBUG
-            if params:
-                styling = params.pop(0)
-            self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, sep=sep), styling=styling)
+            styling, key_legend = self.__summarise_params(params)
+            
+            if key_legend:
+                self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, value_pad=value_pad, sep=sep), styling=styling, end='')
+                self.message(key_legend, styling=InteractiveLogger.DIRECT_OPTION)
+            else:
+                self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, value_pad=value_pad, sep=sep), styling=styling)
         self.message()
 
 
-    def __format_summary_entry(self, key, value, key_pad=16, sep=' '):
+    def add_summary_value(self, summary, title, value):
+        summary.append([title, value])
+    
+
+    def add_summary_config(self, summary, title, config_key, format_func=None, validation_func=None, format_dict=None):
+        value = self.fan_config.settings.get(self.section, config_key)
+        error = None
+
+        try:
+            if validation_func:
+                value = validation_func(value, extended=True)
+            if format_func:
+                value = format_func(value)
+        except PromptValidationException as e:
+            error = str(e)
+
+        result = [title, value]
+        if format_dict:
+            result.append(format_dict)
+        summary.append(result)
+        if error:
+            summary.append([self.SUBKEY_INDENT + self.SUBKEY_CHILD + 'ERROR', error, { 'styling': Logger.ERROR }])
+
+
+    def validate_number(self, value, extended=True):
+        try:
+            value = int(value)
+        except ValueError:
+            raise PromptValidationException('not a number')
+        return value
+    
+
+    def validate_temp(self, value, extended=True):
+        value = self.validate_number(value, extended)
+        if value < Fan.SENSOR_MIN:
+            raise PromptValidationException('less than ' + str(Fan.SENSOR_MIN))
+        return value
+
+
+    def validate_pwm(self, value, extended=True):
+        value = self.validate_number(value, extended)
+        if extended:
+            if value < Fan.PWM_MIN:
+                raise PromptValidationException('less than ' + str(Fan.PWM_MIN))
+            if value > Fan.PWM_MAX:
+                raise PromptValidationException('greater than ' + str(Fan.PWM_MAX))
+        return value
+
+
+    def __summarise_params(self, params):
+        if (len(params) > 1):
+            raise ValueError('extra parameters encountered')
+        styling = Logger.DEBUG
+        key_legend = None
+        if params:
+            params = params.pop(0)
+            if 'styling' in params:
+                styling = params['styling']
+            if 'key' in params:
+                key_legend = params['key']
+        return styling, key_legend
+
+
+    def __format_summary_entry(self, key, value, key_pad=16, value_pad=0, sep=' '):
         if key_pad:
-            return (key + sep).ljust(key_pad) + str(value)
+            return (key + sep).ljust(key_pad) + str(value).ljust(value_pad)
         return (key + sep) + str(value)
 
 

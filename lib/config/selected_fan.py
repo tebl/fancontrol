@@ -10,7 +10,7 @@ class SelectedFanContext(InteractiveContext):
 
 
     def interact(self):
-        self.summarise([
+        self.summary([
             ['Controlled by', self.fan.device],
             [self.SUBKEY_INDENT + 'Minimum', utils.format_pwm(self.fan.pwm_min)],
             [self.SUBKEY_INDENT + 'Maximum', utils.format_pwm(self.fan.pwm_max)],

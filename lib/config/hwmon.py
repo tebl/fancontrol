@@ -13,7 +13,7 @@ class HWMONContext(InteractiveContext):
 
 
     def interact(self):
-        self.summarise([
+        self.summary([
             ['Device', self.fan_config.settings.dev_base],
             [self.SUBKEY_CHILD + 'Path check', self.fan_config.settings.dev_path],
             [self.SUBKEY_CHILD + 'Driver check', self.fan_config.settings.dev_name]

@@ -1,4 +1,5 @@
 import argparse
+import math
 import os.path
 from .logger import Logger, InteractiveLogger, FormattedLogger
 from .ansi import ANSIFormatter
@@ -23,6 +24,15 @@ def format_rpm(value):
 
 def format_celsius(value):
     return '{}°C'.format(str(value))
+
+
+def pad_number(value, steps = 10):
+    '''
+    Pads out a number to a certain limit, mainly used in order to conform to
+    certain widths.
+    '''
+    return steps * math.ceil(value / steps)
+
 
 
 def is_pid(pid_path):

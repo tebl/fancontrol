@@ -10,6 +10,7 @@ from .temperature_sensor import TemperatureSensor
 class Fan(LoggerMixin):
     PWM_MIN = 0
     PWM_MAX = 255
+    SENSOR_MIN = 0
 
 
     def __init__(self, controller, settings, logger, name, auto_load=True):
@@ -109,7 +110,7 @@ class Fan(LoggerMixin):
         self.__get_attribute_int('sensor_min')
         self.__get_attribute_int('sensor_max')
         if self.sensor_min >= self.sensor_max:
-            raise ConfigurationError('Setting "sensor_min" ({}) must be lower than "pwm_max" ({})'.format(self.sensor_min, self.sensor_max), self)
+            raise ConfigurationError('Setting "sensor_min" ({}) must be lower than "sensor_max" ({})'.format(self.sensor_min, self.sensor_max), self)
 
         self.__get_attribute('pwm_input')
         self.pwm_input = self.controller.create_sensor(self, self.pwm_input, FanSensor)

@@ -5,7 +5,7 @@ from .context import InteractiveContext
 
 class FansLoadedContext(InteractiveContext):
     def interact(self):
-        self.summarise([
+        self.summary([
             ['Delay', 'Controller updates every {} seconds'.format(self.fan_config.delay)],
             ['Device', self.fan_config.get_path()],
             [self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path],
