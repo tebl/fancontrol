@@ -116,21 +116,21 @@ class SectionContext(InteractiveContext):
 
 
     def __validate_pwm_min(self, value, extended=False):
-        value = self.validate_pwm(value, extended)
+        value = self.validate_pwm(value, True)
         if extended and value >= self.fan_config.settings.getint(self.section, 'pwm_max'):
             raise PromptValidationException('must be less than Device Max')
         return value
 
 
     def __validate_pwm_max(self, value, extended=False):
-        value = self.validate_pwm(value, extended)
+        value = self.validate_pwm(value, True)
         if extended and value < self.fan_config.settings.getint(self.section, 'pwm_min'):
             raise PromptValidationException('must be more than Device Min')
         return value
     
 
     def __validate_pwm_stop(self, value, extended=False):
-        value = self.validate_pwm(value, extended)
+        value = self.validate_pwm(value, True)
         if extended and value >= self.fan_config.settings.getint(self.section, 'pwm_max'):
             raise PromptValidationException('must be less than Device Max')
         if extended and value < self.fan_config.settings.getint(self.section, 'pwm_min'):
@@ -139,7 +139,7 @@ class SectionContext(InteractiveContext):
     
 
     def __validate_sensor_min(self, value, extended=False):
-        value = self.validate_temp(value)
+        value = self.validate_temp(value, True)
         if extended and value >= self.fan_config.settings.getint(self.section, 'sensor_max'):
             raise PromptValidationException('must be less than Sensor Max')
         return value

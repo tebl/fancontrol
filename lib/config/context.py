@@ -102,14 +102,14 @@ class InteractiveContext(LoggerMixin):
     
 
     def validate_temp(self, value, extended=True):
-        value = self.validate_number(value, extended)
+        value = self.validate_number(value, True)
         if value < Fan.SENSOR_MIN:
             raise PromptValidationException('less than ' + str(Fan.SENSOR_MIN))
         return value
 
 
     def validate_pwm(self, value, extended=True):
-        value = self.validate_number(value, extended)
+        value = self.validate_number(value, True)
         if extended:
             if value < Fan.PWM_MIN:
                 raise PromptValidationException('less than ' + str(Fan.PWM_MIN))
