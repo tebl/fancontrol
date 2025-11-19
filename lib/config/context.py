@@ -7,6 +7,8 @@ from .. import utils
 
 
 class InteractiveContext(LoggerMixin):
+    ACTIONS = 'Actions available'
+
     SUBKEY_INDENT = '  '
     SUBKEY_CHILD =  '\u21B3 '
 
@@ -73,6 +75,13 @@ class InteractiveContext(LoggerMixin):
     
 
     def add_summary_config(self, summary, title, config_key, format_func=None, validation_func=None, format_dict=None):
+        '''
+        Add summary item that should be read from the configuration, will be
+        formatted using optional function if one has been supplied. Value
+        validation can be performed in the same manner, but note that we're
+        performing a more detailed examination of values compared to what the
+        input handler does.
+        '''
         value = self.fan_config.settings.get(self.section, config_key)
         error = None
         if not format_dict:
@@ -120,7 +129,7 @@ class InteractiveContext(LoggerMixin):
 
     def validate_string(self, value, extended=True):
         if not value:
-            raise PromptValidationException('value not set')
+            raise PromptValidationException('empty value')
         return value
 
 

@@ -49,7 +49,7 @@ class SectionContext(InteractiveContext):
                         self.message('Configuration updated.', end='\n\n')
                         return self.parent
                     case 'n':
-                        self.message('Configuration updated.', end='\n\n')
+                        self.message('Temporary configuration removed.', end='\n\n')
                         self.fan_config.settings.remove_section(self.section)
                         self.fan_config.settings.save()
                         return self.parent

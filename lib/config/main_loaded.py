@@ -11,10 +11,6 @@ class LoadedContext(InteractiveContext):
     Used after the configuration has been successfully loaded by fan_config,
     and the assumption is that the same would be possible for fancontrol as 
     well. Offers ability to configure fan configurations.
-
-    Note: As we don't really have a method for unloading a configuration, we
-          don't know how to get back to the main menu. So if we hit x here we
-          exit completely.
     '''
     def interact(self):
         self.summary([
@@ -30,7 +26,7 @@ class LoadedContext(InteractiveContext):
         input = self.console.prompt_choices(self.__get_prompt_builder())
         match input:
             case None | 'x':
-                return self.confirm_exit()
+                return self.parent
             case 'c':
                 if self.__attempt_load_fans():
                     return FansLoadedContext(self.fan_config, parent=None)
