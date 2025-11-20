@@ -75,7 +75,9 @@ class Settings(LoggerMixin):
         '''
         sections = self.config.sections()
         sections = filter(lambda section: self.__include_section(section, filter_special=filter_special, only_enabled=only_enabled), sections)
-        return list(sections)
+        sections = list(sections)
+        sections.sort()
+        return sections
 
 
     def __include_section(self, section, filter_special=True, only_enabled=True):
