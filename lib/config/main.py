@@ -33,7 +33,6 @@ class MainContext(InteractiveContext):
         if items is None:
             items = []
 
-        self.add_summary_value(items, 'Version', PACKAGE)
         self.add_summary_config(items, 'Delay', 'delay', format_func=MainLoadedContext.format_delay, validation_func=self.validate_string)
         self.add_summary_config(items, 'Device', 'dev_base', validation_func=self.validate_hwmon)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Path checked', 'dev_path', validation_func=self.validate_string)
@@ -61,8 +60,5 @@ class MainContext(InteractiveContext):
                 self.message('Configuration loaded.', end='\n\n')
             return True
         except ConfigurationError as e:
-            error_str = traceback.format_exc()
-            self.error('Configuration error: ')
-            self.error(str(e))
-            self.message(error_str, styling=Logger.DEBUG)
+            self.print_configuration_error(e)
         return False

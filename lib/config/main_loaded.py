@@ -1,4 +1,4 @@
-import uuid
+import uuid, traceback
 from ..logger import Logger, InteractiveLogger, PromptBuilder
 from ..exceptions import ConfigurationError
 from .context import InteractiveContext
@@ -93,6 +93,5 @@ class MainLoadedContext(InteractiveContext):
                 self.message('Fan configuration loaded.', end='\n\n')
             return True
         except ConfigurationError as e:
-            self.error('Configuration error: ')
-            self.error(self.SUBKEY_INDENT + str(e), end='\n\n')
+            self.print_configuration_error(e)
         return False

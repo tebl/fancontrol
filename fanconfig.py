@@ -12,10 +12,11 @@ from lib.config import MainContext
 
 
 class FanConfig(BaseControl):
-    def __init__(self, settings, logger, console):
+    def __init__(self, settings, logger, console, dev_debug=False):
         super().__init__(settings, logger, auto_load=False)
         self.console = console
         self.running = False
+        self.dev_debug = dev_debug
 
 
     def control(self, auto_select=None):

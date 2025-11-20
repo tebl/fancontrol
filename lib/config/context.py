@@ -1,4 +1,4 @@
-import math, os
+import os, traceback
 from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder, PromptValidationException
 from ..control import BaseControl, Fan
 from ..hwmon_info import HwmonInfo
@@ -367,6 +367,14 @@ class InteractiveContext(Context):
             case _:
                 return choices[selected]
         return None
+
+
+    def print_configuration_error(self, exception):
+        self.error('Configuration error: ' + str(exception))
+        if self.fan_config.dev_debug:
+            error_str = traceback.format_exc()
+            self.message(error_str, styling=Logger.DEBUG)
+        self.message()
 
 
     @staticmethod
