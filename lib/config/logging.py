@@ -12,14 +12,14 @@ class LoggingContext(InteractiveContext):
         super().__init__(*args)
 
 
-    def interact(self):
+    def interact(self, auto_select=None):
         self.summary([
             [self.LOG_USING, self.fan_config.settings.log_using],
             [self.SUBKEY_CHILD + self.LOG_FORMATTING, self.fan_config.settings.log_formatter],
             [self.SUBKEY_CHILD + self.LOG_LEVEL, self.fan_config.settings.log_level],
         ])
 
-        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=None)
         match input:
             case None | 'x':
                 return self.parent

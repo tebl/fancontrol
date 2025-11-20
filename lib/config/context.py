@@ -11,7 +11,7 @@ class Context(LoggerMixin):
     Base class, mostly here to define operations that don't require any kind of
     data as well as provide static building blocks for InteractiveContext.
     '''
-    ACRONYMS = utils.ACRONYMS + ['PWM Input']
+    ACRONYMS = utils.ACRONYMS
 
 
     def __str__(self):
@@ -33,6 +33,8 @@ class InteractiveContext(Context):
     implementing all common functionality such as looking up data or providing
     common interface functionality. 
     '''
+    ACRONYMS = Context.ACRONYMS + ['PWM Input']
+
     ACTIONS = 'Actions available'
     CONFIG_UPDATED = 'Configuration updated.'
 
@@ -85,7 +87,7 @@ class InteractiveContext(Context):
     #     return super().__getattribute__(name)
 
     
-    def interact(self):
+    def interact(self, auto_select=None):
         '''
         Nothing here, but that's only to be expected from a base class. The
         script will interact with contexts through a version of this method,

@@ -5,7 +5,7 @@ from .control_fan import ControlFanContext
 
 
 class MainCompleteContext(InteractiveContext):
-    def interact(self):
+    def interact(self, auto_select=None):
         self.summary([
             ['Delay', 'Controller updates every {} seconds'.format(self.fan_config.delay)],
             ['Device', self.fan_config.get_path()],
@@ -15,7 +15,7 @@ class MainCompleteContext(InteractiveContext):
 
         self.__list_fans()
 
-        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=auto_select)
         match input:
             case None | 'x':
                 return self.confirm_exit()

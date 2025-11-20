@@ -326,11 +326,18 @@ class InteractiveLogger(ConsoleLogger):
         return super().format_logline(message, log_level)
 
 
-    def prompt_choices(self, prompt_builder, prompt='Select option'):
+    def prompt_choices(self, prompt_builder, prompt='Select option', auto_select=None):
         prompt_builder.print_legend()
         self.log_prompt(prompt)
         while True:
-            result = self.get_character()
+            # If using auto_select, consume one item. Read from console if not.
+            auto_key = None
+            if type(auto_select) is list and len(auto_select) > 0:
+                auto_key = auto_select.pop(0)
+                result = auto_key
+            else:
+                result = self.get_character()
+
             if result == self.BACKSPACE:
                 result = 'x'
 
@@ -341,6 +348,13 @@ class InteractiveLogger(ConsoleLogger):
             if result in prompt_builder:
                 self.log_direct(result, styling=self.DIRECT_VALUE)
                 return result
+            
+            # If we get here, then auto_select malfunctioned and we should skip
+            # any remaining keys. Continue after in order to allow user to
+            # select what should happen next.
+            if auto_key is not None:
+                auto_select.clear()
+                continue
 
 
     def prompt_character(self, prompt):

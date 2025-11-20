@@ -18,12 +18,13 @@ class FanConfig(BaseControl):
         self.running = False
 
 
-    def control(self):
+    def control(self, auto_select=None):
+        self.auto_select = auto_select
         self.running = True
         self.context = MainContext(self, None)
         try:
             while self.running and self.context is not None:
-                self.context = self.context.interact()
+                self.context = self.context.interact(auto_select=self.auto_select)
         except KeyboardInterrupt:
             self.running = False
         finally:
@@ -39,6 +40,11 @@ class FanConfig(BaseControl):
         return super().load_configuration()
 
 
+def get_auto_keys(auto_key):
+    if auto_key:
+        return [c for c in auto_key]
+    return None
+
 def main():
     parser = argparse.ArgumentParser()
     parser.description = 'Python fancontrol, spinning fans in the 21st century'
@@ -46,6 +52,7 @@ def main():
     parser.add_argument('-v', '--version', action='version', version=PACKAGE, help="Show version information")
     parser.add_argument('--pid-file', type=utils.is_pid, default='fancontrol.pid', help='Specify pid path')
     parser.add_argument('-z', '--zap-pid', action='store_true', help='Remove pid if it exists')
+    parser.add_argument('-a', '--auto-key', help='Auto-navigate using keys specified')
     utils.add_interactive_arguments(parser)
     args = parser.parse_args()
 
@@ -56,7 +63,7 @@ def main():
         console.log_direct('Starting {} {}'.format(FanConfig.__name__, PACKAGE_VERSION), end='\n\n')
         with PIDFile(logger, args.pid_file, zap_if_exists=args.zap_pid):
             tune = FanConfig(settings, logger, console)
-            tune.control()
+            tune.control(auto_select=get_auto_keys(args.auto_key))
     except ConfigurationError as e:
         console.log_error('Problem in configuration:')
         console.log_direct('\t' + str(e))

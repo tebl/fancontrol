@@ -9,11 +9,11 @@ from .hwmon import HWMONContext
 
 
 class MainContext(InteractiveContext):
-    def interact(self):
+    def interact(self, auto_select=None):
         self.summary()
 
         self.message(InteractiveContext.ACTIONS + ':')
-        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=auto_select)
         match input:
             case None | 'x':
                 return self.confirm_exit()

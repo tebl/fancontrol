@@ -56,10 +56,10 @@ class SectionContext(InteractiveContext):
             return result
 
 
-    def interact(self):
+    def interact(self, auto_select=None):
         self.summary()
 
-        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=auto_select)
         result, key = self.__match_actions(input)
         return result
 
