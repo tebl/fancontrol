@@ -99,7 +99,9 @@ class InteractiveContext(Context):
 
     def message(self, message='', styling=InteractiveLogger.DIRECT_REGULAR, end='\n'):
         self.console.log_direct(message, styling=styling, end=end)
-
+    @staticmethod
+    def format_delay(value):
+        return 'Controller updates every {} seconds'.format(value)
 
     def error(self, message, styling=Logger.ERROR, end='\n'):
         self.message(message, styling=styling, end=end)
@@ -201,6 +203,12 @@ class InteractiveContext(Context):
         hwmon_path = os.path.join(BaseControl.BASE_PATH, value)
         if not os.path.isdir(hwmon_path):
             raise PromptValidationException('hwmon not found')
+        return value
+
+
+    def validate_exists(self, value, extended=True):
+        if value is None:
+            raise PromptValidationException('doesn\'t have a value')
         return value
 
 
@@ -359,3 +367,8 @@ class InteractiveContext(Context):
             case _:
                 return choices[selected]
         return None
+
+
+    @staticmethod
+    def format_delay(value):
+        return 'Controller updates every {} seconds'.format(value)

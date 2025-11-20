@@ -1,20 +1,15 @@
-from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
-from ..ansi import ANSIFormatter
+from ..logger import Logger, InteractiveLogger, PromptBuilder
 from .context import InteractiveContext
 from .control_fan import ControlFanContext
+from .logging import LoggingContext
 
 
 class MainCompleteContext(InteractiveContext):
     def interact(self, auto_select=None):
-        self.summary([
-            ['Delay', 'Controller updates every {} seconds'.format(self.fan_config.delay)],
-            ['Device', self.fan_config.get_path()],
-            [self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path],
-            [self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name]
-        ])
-
+        self.summary()
         self.__list_fans()
 
+        self.message(InteractiveContext.ACTIONS + ':')
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=auto_select)
         match input:
             case None | 'x':
@@ -24,6 +19,19 @@ class MainCompleteContext(InteractiveContext):
                 self.message('Fan {} selected'.format(fan.get_title()), end='\n\n')
                 return ControlFanContext(self.fan_config, self, fan=fan)
         return self
+
+
+    def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
+        # This is needed as changing items to a default value of [] would cause
+        # it to be reused across all function calls. Apparently Python does that.
+        if items is None:
+            items = []
+
+        self.add_summary_value(items, 'Delay', self.fan_config.delay, format_func=self.format_delay, validation_func=self.validate_exists)
+        self.add_summary_value(items, 'Device', self.fan_config.get_path(), validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name, validation_func=self.validate_exists)
+        return super().summary(items, sep, prefix)
 
 
     def __get_prompt_builder(self):

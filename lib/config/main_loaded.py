@@ -1,5 +1,5 @@
 import uuid
-from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
+from ..logger import Logger, InteractiveLogger, PromptBuilder
 from ..exceptions import ConfigurationError
 from .context import InteractiveContext
 from .main_complete import MainCompleteContext
@@ -13,14 +13,12 @@ class MainLoadedContext(InteractiveContext):
     and the assumption is that the same would be possible for fancontrol as 
     well. Offers ability to configure fan configurations.
     '''
-
-
     def interact(self, auto_select=None):
         self.summary()
-
         self.__load_sections()
         self.__list_sections()
 
+        self.message(InteractiveContext.ACTIONS + ':')
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=auto_select)
         match input:
             case None | 'x':
@@ -43,13 +41,10 @@ class MainLoadedContext(InteractiveContext):
         if items is None:
             items = []
 
-        self.add_summary_value(items, 'Delay', self.fan_config.delay, format_func=self.format_delay)
-        self.add_summary_value(items, 'Device', self.fan_config.dev_base)
-        self.add_summary_value(items, self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path)
-        self.add_summary_value(items, self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name)
-        self.add_summary_config(items, LoggingContext.LOG_USING, 'log_using')
-        self.add_summary_config(items, self.SUBKEY_CHILD + LoggingContext.LOG_FORMATTING, 'log_formatter', validation_func=self.validate_string)
-        self.add_summary_config(items, self.SUBKEY_CHILD + LoggingContext.LOG_LEVEL, 'log_level', validation_func=self.validate_string)
+        self.add_summary_value(items, 'Delay', self.fan_config.delay, format_func=self.format_delay, validation_func=self.validate_exists)
+        self.add_summary_value(items, 'Device', self.fan_config.get_path(), validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name, validation_func=self.validate_exists)
         return super().summary(items, sep, prefix)
 
 
@@ -101,8 +96,3 @@ class MainLoadedContext(InteractiveContext):
             self.error('Configuration error: ')
             self.error(self.SUBKEY_INDENT + str(e), end='\n\n')
         return False
-
-
-    @staticmethod
-    def format_delay(value):
-        return 'Controller updates every {} seconds'.format(value)
