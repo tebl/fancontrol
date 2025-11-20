@@ -3,8 +3,8 @@ from .main import MainContext
 from .logging import LoggingContext
 from .hwmon import HWMONContext
 from .main_loaded import MainLoadedContext
-from .control import ControlFanContext
 from .section import SectionContext
+from .control_fan import ControlFanContext
 
 # Context structure:
 #
@@ -14,4 +14,4 @@ from .section import SectionContext
 #   - main_loaded
 #     - section
 #     - main_complete
-#       - control
+#       - control_fan

@@ -1,6 +1,7 @@
 from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from ..ansi import ANSIFormatter
 from .context import InteractiveContext
+from .control_fan import ControlFanContext
 
 
 class MainCompleteContext(InteractiveContext):
@@ -18,20 +19,16 @@ class MainCompleteContext(InteractiveContext):
         match input:
             case None | 'x':
                 return self.confirm_exit()
-            # case 'c':
-            #     if self.__attempt_load():
-            #         return FansLoadedContext(self.fan_config, parent=None)
-            # case _:
-            #     fan = self.prompt_values[input]
-            #     self.message('Fan {} selected'.format(fan.get_title()), end='\n\n')
-            #     return SelectedFanContext(self.fan_config, self, fan=fan)
+            case _:
+                fan = self.prompt_values[input]
+                self.message('Fan {} selected'.format(fan.get_title()), end='\n\n')
+                return ControlFanContext(self.fan_config, self, fan=fan)
         return self
 
 
     def __get_prompt_builder(self):
         builder = PromptBuilder(self.console)
-        # builder.set('c', 'Load configuration', highlight=True, reorder=True)
-        builder.add_exit(reorder=True)
+        builder.add_exit()
         self.__add_fan_options(builder)
         return builder
 

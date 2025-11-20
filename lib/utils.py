@@ -6,11 +6,51 @@ from .ansi import ANSIFormatter
 from . import *
 
 
+ACRONYMS = [ ]
+'Acronyms used as default by the module, add anything expected to be globally true'
+
+
+def to_sentence(*args, acronyms=None, first=True):
+    '''
+    Convert a series of words into something resembling a sentence, in essence
+    avoiding the need to redefine strings based on the capitalization of the
+    first letter. Words that contain spaces will be split up and processed
+    separately, but only if it isn't already an acronym.
+    '''
+    if acronyms is None:
+        acronyms = ACRONYMS
+    words = list(args)
+    for index, word in enumerate(words):
+        if not is_acronym(word, acronyms):
+            parts = word.split()
+            if len(parts) == 1:
+                words[index] = word.lower() if not first else word[0].upper() + word[1:]
+            else:
+                words[index] = to_sentence(*parts, acronyms=acronyms, first=False)
+        first = False
+    return ' '.join(words)
+
+
+def is_acronym(word, acronyms=None):
+    '''
+    Check whether the specified word is an acronym, meaning that it's either
+    included in the list of acronyms passed to it - or it's entirely in caps.
+    '''
+    if acronyms is None:
+        acronyms = ACRONYMS
+    if word in acronyms:
+        return True
+    return word.isupper()
+
+
 def to_keypair_str(key, value):
     return str(key) + " (" + str(value) + ")"
 
 
 def remap_int(value, in_min, in_max, out_min, out_max):
+    '''
+    Similar to Arduino map-function, used to map one integer range onto another.
+    '''
     return out_min + (float(value - in_min) / float(in_max - in_min)) * (out_max - out_min)
 
 

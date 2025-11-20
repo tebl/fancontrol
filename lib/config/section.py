@@ -46,7 +46,7 @@ class SectionContext(InteractiveContext):
                         # Cancel in this context means keeping editing new fan
                         continue
                     case 'y':
-                        self.message('Configuration updated.', end='\n\n')
+                        self.message(self.CONFIG_UPDATED, end='\n\n')
                         return self.parent
                     case 'n':
                         self.message('Temporary configuration removed.', end='\n\n')
@@ -69,17 +69,17 @@ class SectionContext(InteractiveContext):
             case None | 'x':
                 return (self.parent, 'x')
             case self.KEY_DEVICE_MIN:
-                return (self.__set_value('Device Min', 'pwm_min', validation_func=self.__validate_pwm_min), input)
+                return (self.__set_value(self.DEVICE_MIN, 'pwm_min', validation_func=self.__validate_pwm_min), input)
             case self.KEY_DEVICE_MAX:
-                return (self.__set_value('Device Max', 'pwm_max', validation_func=self.__validate_pwm_max), input)
+                return (self.__set_value(self.DEVICE_MAX, 'pwm_max', validation_func=self.__validate_pwm_max), input)
             case self.KEY_DEVICE_START:
-                return (self.__set_value('Device Min', 'pwm_start', validation_func=self.validate_pwm), input)
+                return (self.__set_value(self.DEVICE_START, 'pwm_start', validation_func=self.validate_pwm), input)
             case self.KEY_DEVICE_STOP:
-                return (self.__set_value('Device Max', 'pwm_stop', validation_func=self.validate_pwm), input)
+                return (self.__set_value(self.DEVICE_STOP, 'pwm_stop', validation_func=self.validate_pwm), input)
             case self.KEY_SENSOR_MIN:
-                return (self.__set_value('Sensor Min', 'sensor_min', validation_func=self.validate_temp), input)
+                return (self.__set_value(self.SENSOR_MIN, 'sensor_min', validation_func=self.validate_temp), input)
             case self.KEY_SENSOR_MAX:
-                return (self.__set_value('Sensor Max', 'sensor_max', validation_func=self.validate_temp), input)
+                return (self.__set_value(self.SENSOR_MAX, 'sensor_max', validation_func=self.validate_temp), input)
             case self.KEY_DEVICE:
                 return (self.__handle_device(), input)
             case self.KEY_ENABLE:
@@ -101,17 +101,17 @@ class SectionContext(InteractiveContext):
         if items is None:
             items = []
 
-        self.add_summary_value(items, 'Name', self.section)
-        self.add_summary_config(items, 'Device', 'device', validation_func=self.__validate_resource)
+        self.add_summary_value(items, self.NAME, self.section)
+        self.add_summary_config(items, self.DEVICE, 'device', validation_func=self.__validate_resource)
         self.__add_status(items)
-        self.add_summary_config(items, self.SUBKEY_CHILD + "Minimum", 'pwm_min', format_func=utils.format_pwm, validation_func=self.__validate_pwm_min, format_dict={ 'key': self.KEY_DEVICE_MIN })
-        self.add_summary_config(items, self.SUBKEY_CHILD + "Maximum", 'pwm_max', format_func=utils.format_pwm, validation_func=self.__validate_pwm_max, format_dict={ 'key': self.KEY_DEVICE_MAX })
-        self.add_summary_config(items, self.SUBKEY_CHILD + "Start", 'pwm_start', format_func=utils.format_pwm, validation_func=self.validate_pwm, format_dict={ 'key': self.KEY_DEVICE_START })
-        self.add_summary_config(items, self.SUBKEY_CHILD + "Stop", 'pwm_stop', format_func=utils.format_pwm, validation_func=self.__validate_pwm_stop, format_dict={ 'key': self.KEY_DEVICE_STOP })
-        self.add_summary_config(items, 'Sensor', 'sensor', validation_func=self.__validate_resource)
-        self.add_summary_config(items, self.SUBKEY_CHILD + "Minimum", 'sensor_min', format_func=utils.format_celsius, validation_func=self.__validate_sensor_min, format_dict={ 'key': self.KEY_SENSOR_MIN })
-        self.add_summary_config(items, self.SUBKEY_CHILD + "Maximum", 'sensor_max', format_func=utils.format_celsius, validation_func=self.validate_temp, format_dict={ 'key': self.KEY_SENSOR_MAX })
-        self.add_summary_config(items, 'PWM Input', 'pwm_input', validation_func=self.__validate_resource)
+        self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'pwm_min', format_func=utils.format_pwm, validation_func=self.__validate_pwm_min, format_dict={ 'key': self.KEY_DEVICE_MIN })
+        self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'pwm_max', format_func=utils.format_pwm, validation_func=self.__validate_pwm_max, format_dict={ 'key': self.KEY_DEVICE_MAX })
+        self.add_summary_config(items, self.SUBKEY_CHILD + self.START, 'pwm_start', format_func=utils.format_pwm, validation_func=self.validate_pwm, format_dict={ 'key': self.KEY_DEVICE_START })
+        self.add_summary_config(items, self.SUBKEY_CHILD + self.STOP, 'pwm_stop', format_func=utils.format_pwm, validation_func=self.__validate_pwm_stop, format_dict={ 'key': self.KEY_DEVICE_STOP })
+        self.add_summary_config(items, self.SENSOR, 'sensor', validation_func=self.__validate_resource)
+        self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'sensor_min', format_func=utils.format_celsius, validation_func=self.__validate_sensor_min, format_dict={ 'key': self.KEY_SENSOR_MIN })
+        self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'sensor_max', format_func=utils.format_celsius, validation_func=self.validate_temp, format_dict={ 'key': self.KEY_SENSOR_MAX })
+        self.add_summary_config(items, self.PWM_INPUT, 'pwm_input', validation_func=self.__validate_resource)
         return super().summary(items, sep, prefix)
 
 
@@ -161,9 +161,9 @@ class SectionContext(InteractiveContext):
     def __add_status(self, summary):
         enabled = self.fan_config.settings.is_enabled(self.section)
         if enabled:
-            summary.append([self.SUBKEY_CHILD + "Status", 'Enabled'])
+            summary.append([self.SUBKEY_CHILD + self.STATUS, self.ENABLED])
         else:
-            summary.append([self.SUBKEY_CHILD + "Status", 'Disabled', {'styling': Logger.WARNING}])
+            summary.append([self.SUBKEY_CHILD + self.STATUS, self.DISABLED, {'styling': Logger.WARNING}])
 
 
     def __set_value(self, name, key, validation_func):
@@ -174,7 +174,7 @@ class SectionContext(InteractiveContext):
             try:
                 self.fan_config.settings.set(self.section, key, input)
                 self.fan_config.settings.save()
-                self.message('Configuration updated.', end='\n\n')
+                self.message(self.CONFIG_UPDATED, end='\n\n')
             except ControlRuntimeError as e:
                 self.error('Renaming failed with error ({})'.format(e.message), end='\n\n')
         return self
@@ -182,17 +182,17 @@ class SectionContext(InteractiveContext):
 
     def __get_prompt_builder(self):
         builder = PromptBuilder(self.console)
-        builder.set(self.KEY_DELETE, 'Remove')
-        builder.set(self.KEY_SENSOR, 'Set sensor')
-        builder.set(self.KEY_SENSE, 'Set PWM Input')
-        builder.set(self.KEY_DEVICE, 'Set device')
-        builder.set(self.KEY_NAME, 'Change name')
-        builder.set(self.KEY_DEVICE_MIN, 'Device Min')
-        builder.set(self.KEY_DEVICE_MAX, 'Device Max')
-        builder.set(self.KEY_DEVICE_START, 'Device Start')
-        builder.set(self.KEY_DEVICE_STOP, 'Device Stop')
-        builder.set(self.KEY_SENSOR_MIN, 'Sensor Min')
-        builder.set(self.KEY_SENSOR_MAX, 'Sensor Max')
+        builder.set(self.KEY_DELETE, self.DELETE)
+        builder.set(self.KEY_SENSOR, utils.to_sentence(self.SET, self.SENSOR))
+        builder.set(self.KEY_SENSE, utils.to_sentence(self.SET, self.PWM_INPUT))
+        builder.set(self.KEY_DEVICE, utils.to_sentence(self.SET, self.DEVICE))
+        builder.set(self.KEY_NAME, utils.to_sentence(self.CHANGE, self.NAME))
+        builder.set(self.KEY_DEVICE_MIN, self.DEVICE_MIN)
+        builder.set(self.KEY_DEVICE_MAX, self.DEVICE_MAX)
+        builder.set(self.KEY_DEVICE_START, self.DEVICE_START)
+        builder.set(self.KEY_DEVICE_STOP, self.DEVICE_STOP)
+        builder.set(self.KEY_SENSOR_MIN, self.SENSOR_MIN)
+        builder.set(self.KEY_SENSOR_MAX, self.SENSOR_MAX)
         self.__add_toggle_enabled(builder)
         builder.add_back()
         return builder
@@ -206,7 +206,7 @@ class SectionContext(InteractiveContext):
     def __handle_enable(self):
         self.fan_config.settings.set_enabled(self.section, not self.fan_config.settings.is_enabled(self.section))
         self.fan_config.settings.save()
-        self.message('Configuration updated.', end='\n\n')
+        self.message(self.CONFIG_UPDATED, end='\n\n')
         return self
 
 
@@ -218,7 +218,7 @@ class SectionContext(InteractiveContext):
             try:
                 if self.fan_config.settings.rename_section(self.section, input):
                     self.section = input
-                    self.message('Configuration updated.', end='\n\n')
+                    self.message(self.CONFIG_UPDATED, end='\n\n')
             except ControlRuntimeError as e:
                 self.error('Renaming failed with error ({})'.format(e.message), end='\n\n')
         return self
@@ -279,7 +279,7 @@ class SectionContext(InteractiveContext):
 
         self.fan_config.settings.set(self.section, write_attribute, hwmon_entry.get_input(dev_base=self.fan_config.settings.dev_base))
         self.fan_config.settings.save()
-        self.message('Configuration updated.', end='\n\n')
+        self.message(self.CONFIG_UPDATED, end='\n\n')
 
         return self
 

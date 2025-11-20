@@ -6,8 +6,65 @@ from ..logger import PromptBuilder
 from .. import utils
 
 
-class InteractiveContext(LoggerMixin):
+class Context(LoggerMixin):
+    '''
+    Base class, mostly here to define operations that don't require any kind of
+    data as well as provide static building blocks for InteractiveContext.
+    '''
+    ACRONYMS = utils.ACRONYMS + ['PWM Input']
+
+
+    def __str__(self):
+        suffix = 'Context'
+        name = self.__class__.__name__
+        if name.endswith(suffix):
+            name = name[:-len(suffix)]
+        return name
+
+
+    @staticmethod
+    def to_sentence(*args):
+        return utils.to_sentence(*args, acronyms=__class__.ACRONYMS)
+
+
+class InteractiveContext(Context):
+    '''
+    All contexts expected to function should inherit from InteractiveContext,
+    implementing all common functionality such as looking up data or providing
+    common interface functionality. 
+    '''
     ACTIONS = 'Actions available'
+    CONFIG_UPDATED = 'Configuration updated.'
+
+    CREATE = 'Create'
+    CHANGE = 'Change'
+    DELETE = 'Delete'
+    CONFIRM = 'Confirm'
+    SET = 'Set'
+    EXIT = 'Exit'
+
+    ENABLED = 'Enabled'
+    DISABLED = 'Disabled'
+    CONFIRM_CHANGE = Context.to_sentence(CONFIRM, CHANGE)
+
+    START = 'Start'
+    STOP = 'Stop'
+    MINIMUM = 'Minimum'
+    MIN = 'Min'
+    MAXIMUM = 'Minimum'
+    MAX = 'Max'
+
+    NAME = 'Name'
+    DEVICE = 'Device'
+    DEVICE_MIN = Context.to_sentence(DEVICE, MIN)
+    DEVICE_MAX = Context.to_sentence(DEVICE, MAX)
+    DEVICE_START = Context.to_sentence(DEVICE, START)
+    DEVICE_STOP = Context.to_sentence(DEVICE, STOP)
+    SENSOR = 'Sensor'
+    SENSOR_MIN = Context.to_sentence(SENSOR, MIN)
+    SENSOR_MAX = Context.to_sentence(SENSOR, MAX)
+    PWM_INPUT = 'PWM Input'
+    STATUS = 'Status'
 
     SUBKEY_INDENT = '  '
     SUBKEY_CHILD =  '\u21B3 '
@@ -46,21 +103,21 @@ class InteractiveContext(LoggerMixin):
         self.message(message, styling=styling, end=end)
 
 
-    def summary(self, list=None, sep=': ', prefix=SUBKEY_INDENT):
+    def summary(self, items=None, sep=': ', prefix=SUBKEY_INDENT):
         '''
         Used near the start of a context interaction to summarise common values
         used in this section. List should have the structure of (key, value)
         and the key is used so that we align all values on the screen. An optional
         third value can also be included to set formatter styling.
         '''
-        if not list:
+        if not items:
             return
         self.message('Summary:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
-        key_pad = len(max([key for key, value, *params in list], key=len)) + len(sep)
-        value_pad = len(max([value for key, value, *params in list], key=len)) + len(sep)
+        key_pad = len(max([key for key, value, *params in items], key=len)) + len(sep)
+        value_pad = len(max([value for key, value, *params in items], key=len)) + len(sep)
         value_pad = utils.pad_number(value_pad)
 
-        for key, value, *params in list:
+        for key, value, *params in items:
             styling, key_legend = self.__summarise_params(params)
             
             if key_legend:
@@ -171,7 +228,7 @@ class InteractiveContext(LoggerMixin):
         just return parent context. 
         '''
         if self.CONFIRM_EXIT:
-            if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt='Confirm exit') == 'y':
+            if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.to_sentence(self.CONFIRM, self.EXIT)) == 'y':
                 return self.parent
             return self
         return self.parent
@@ -180,8 +237,8 @@ class InteractiveContext(LoggerMixin):
     def toggle_from_list(self, list, current, default):
         '''
         Used when stepping through possible values, one after another. Makes
-        a copy so that we don't destroy anything valuable, but it will wrap
-        around as needed.
+        a copy so that we don't destroy anything valuable. Wraps around as
+        needed.
         '''
         methods = list.copy()
         try:
@@ -300,11 +357,3 @@ class InteractiveContext(LoggerMixin):
             case _:
                 return choices[selected]
         return None
-
-
-    def __str__(self):
-        suffix = 'Context'
-        name = self.__class__.__name__
-        if name.endswith(suffix):
-            name = name[:-len(suffix)]
-        return name

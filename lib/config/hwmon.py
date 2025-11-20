@@ -14,7 +14,7 @@ class HWMONContext(InteractiveContext):
 
     def interact(self):
         self.summary([
-            ['Device', self.fan_config.settings.dev_base],
+            [self.DEVICE, self.fan_config.settings.dev_base],
             [self.SUBKEY_CHILD + 'Path check', self.fan_config.settings.dev_path],
             [self.SUBKEY_CHILD + 'Driver check', self.fan_config.settings.dev_name]
         ])
@@ -50,7 +50,7 @@ class HWMONContext(InteractiveContext):
         self.message()
         self.message('Changing to {}:'.format(str(hwmon_entry)), styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         self.message(self.SUBKEY_CHILD + 'Fan configurations will be disabled.', styling=Logger.DEBUG, end='\n\n')
-        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt='Confirm change') == 'y':
+        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM_CHANGE) == 'y':
             self.fan_config.settings.set('Settings', 'dev_base', hwmon_entry.name)
             self.fan_config.settings.set('Settings', 'dev_name', hwmon_entry.get_dev_name())
             self.fan_config.settings.set('Settings', 'dev_path', hwmon_entry.get_dev_path())
@@ -59,7 +59,7 @@ class HWMONContext(InteractiveContext):
                 self.fan_config.settings.set_enabled(section, False)
 
             self.fan_config.settings.save()
-            self.message('Configuration updated.', end='\n\n')
+            self.message(self.CONFIG_UPDATED, end='\n\n')
 
 
     def __str__(self):
