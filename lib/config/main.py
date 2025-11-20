@@ -4,7 +4,7 @@ from ..exceptions import ConfigurationError
 from .. import PACKAGE
 from .context import InteractiveContext
 from .logging import LoggingContext
-from .main_loaded import LoadedContext
+from .main_loaded import MainLoadedContext
 from .hwmon import HWMONContext
 
 
@@ -13,13 +13,13 @@ class MainContext(InteractiveContext):
         self.summary()
 
         self.message(InteractiveContext.ACTIONS + ':')
-        input = self.console.prompt_choices(self.__get_prompt_builder())
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
         match input:
             case None | 'x':
                 return self.confirm_exit()
             case 'c':
                 if self.__attempt_load():
-                    return LoadedContext(self.fan_config, self)
+                    return MainLoadedContext(self.fan_config, self)
             case 'h':
                 return HWMONContext(self.fan_config, self)
             case 'l':
@@ -34,7 +34,7 @@ class MainContext(InteractiveContext):
             items = []
 
         self.add_summary_value(items, 'Version', PACKAGE)
-        self.add_summary_config(items, 'Delay', 'delay', format_func=LoadedContext.format_delay, validation_func=self.validate_string)
+        self.add_summary_config(items, 'Delay', 'delay', format_func=MainLoadedContext.format_delay, validation_func=self.validate_string)
         self.add_summary_config(items, 'Device', 'dev_base', validation_func=self.validate_hwmon)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Path checked', 'dev_path', validation_func=self.validate_string)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Driver checked', 'dev_name', validation_func=self.validate_string)

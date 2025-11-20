@@ -3,7 +3,7 @@ from ..ansi import ANSIFormatter
 from .context import InteractiveContext
 
 
-class FansLoadedContext(InteractiveContext):
+class MainCompleteContext(InteractiveContext):
     def interact(self):
         self.summary([
             ['Delay', 'Controller updates every {} seconds'.format(self.fan_config.delay)],
@@ -14,7 +14,7 @@ class FansLoadedContext(InteractiveContext):
 
         self.__list_fans()
 
-        input = self.console.prompt_choices(self.__get_prompt_builder())
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
         match input:
             case None | 'x':
                 return self.confirm_exit()

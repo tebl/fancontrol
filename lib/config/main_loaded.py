@@ -2,12 +2,12 @@ import uuid
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from ..exceptions import ConfigurationError
 from .context import InteractiveContext
-from .fans_loaded import FansLoadedContext
+from .main_complete import MainCompleteContext
 from .section import SectionContext
 from .logging import LoggingContext
 
 
-class LoadedContext(InteractiveContext):
+class MainLoadedContext(InteractiveContext):
     '''
     Used after the configuration has been successfully loaded by fan_config,
     and the assumption is that the same would be possible for fancontrol as 
@@ -21,13 +21,13 @@ class LoadedContext(InteractiveContext):
         self.__load_sections()
         self.__list_sections()
 
-        input = self.console.prompt_choices(self.__get_prompt_builder())
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
         match input:
             case None | 'x':
                 return self.parent
             case 'c':
                 if self.__attempt_load_fans():
-                    return FansLoadedContext(self.fan_config, parent=None)
+                    return MainCompleteContext(self.fan_config, parent=None)
             case 'n':
                 return SectionContext(self.fan_config, self, section=str(uuid.uuid4())).create()
             case _:

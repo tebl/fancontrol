@@ -3,7 +3,7 @@ from .. import utils
 from .context import InteractiveContext
 
 
-class SelectedFanContext(InteractiveContext):
+class ControlFanContext(InteractiveContext):
     def __init__(self, *args, fan):
         self.fan = fan
         super().__init__(*args)

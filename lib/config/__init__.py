@@ -2,8 +2,8 @@ from .context import InteractiveContext
 from .main import MainContext
 from .logging import LoggingContext
 from .hwmon import HWMONContext
-from .main_loaded import LoadedContext
-from .selected_fan import SelectedFanContext
+from .main_loaded import MainLoadedContext
+from .control import ControlFanContext
 from .section import SectionContext
 
 # Context structure:
@@ -13,7 +13,5 @@ from .section import SectionContext
 #   - hwmon
 #   - main_loaded
 #     - section
-#       - section_tuning
-#       - section_monitor
-#     - fans_loaded
-#
+#     - main_complete
+#       - control

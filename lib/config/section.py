@@ -59,7 +59,7 @@ class SectionContext(InteractiveContext):
     def interact(self):
         self.summary()
 
-        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self.section)
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self)
         result, key = self.__match_actions(input)
         return result
 
@@ -305,3 +305,7 @@ class SectionContext(InteractiveContext):
 
     def __hwmon_has_sensors(self, hwmon_entry):
         return hwmon_entry.sensors
+
+
+    def __str__(self):
+        return self.section
