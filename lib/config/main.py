@@ -9,11 +9,6 @@ from .hwmon import HWMONContext
 
 
 class MainContext(InteractiveContext):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.section = self.fan_config.settings.SETTINGS
-
-
     def interact(self):
         self.summary()
 
@@ -39,8 +34,8 @@ class MainContext(InteractiveContext):
             items = []
 
         self.add_summary_value(items, 'Version', PACKAGE)
-        self.add_summary_config(items, 'Delay', 'delay', format_func=str, validation_func=self.validate_string)
-        self.add_summary_config(items, 'Device', 'dev_base')
+        self.add_summary_config(items, 'Delay', 'delay', format_func=LoadedContext.format_delay, validation_func=self.validate_string)
+        self.add_summary_config(items, 'Device', 'dev_base', validation_func=self.validate_hwmon)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Path checked', 'dev_path', validation_func=self.validate_string)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Driver checked', 'dev_name', validation_func=self.validate_string)
         self.add_summary_config(items, LoggingContext.LOG_USING, 'log_using')

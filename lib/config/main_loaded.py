@@ -4,6 +4,7 @@ from ..exceptions import ConfigurationError
 from .context import InteractiveContext
 from .fans_loaded import FansLoadedContext
 from .section import SectionContext
+from .logging import LoggingContext
 
 
 class LoadedContext(InteractiveContext):
@@ -12,13 +13,10 @@ class LoadedContext(InteractiveContext):
     and the assumption is that the same would be possible for fancontrol as 
     well. Offers ability to configure fan configurations.
     '''
+
+
     def interact(self):
-        self.summary([
-            ['Delay', 'Controller updates every {} seconds'.format(self.fan_config.delay)],
-            ['Device', self.fan_config.get_path()],
-            [self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path],
-            [self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name]
-        ])
+        self.summary()
 
         self.__load_sections()
         self.__list_sections()
@@ -37,6 +35,22 @@ class LoadedContext(InteractiveContext):
                 self.message('Fan definition {} selected.'.format(section), end='\n\n')
                 return SectionContext(self.fan_config, self, section=section)
         return self
+
+
+    def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
+        # This is needed as changing items to a default value of [] would cause
+        # it to be reused across all function calls. Apparently Python does that.
+        if items is None:
+            items = []
+
+        self.add_summary_value(items, 'Delay', self.fan_config.delay, format_func=self.format_delay)
+        self.add_summary_value(items, 'Device', self.fan_config.dev_base)
+        self.add_summary_value(items, self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path)
+        self.add_summary_value(items, self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name)
+        self.add_summary_config(items, LoggingContext.LOG_USING, 'log_using')
+        self.add_summary_config(items, self.SUBKEY_CHILD + LoggingContext.LOG_FORMATTING, 'log_formatter', validation_func=self.validate_string)
+        self.add_summary_config(items, self.SUBKEY_CHILD + LoggingContext.LOG_LEVEL, 'log_level', validation_func=self.validate_string)
+        return super().summary(items, sep, prefix)
 
 
     def __load_sections(self):
@@ -87,3 +101,8 @@ class LoadedContext(InteractiveContext):
             self.error('Configuration error: ')
             self.error(self.SUBKEY_INDENT + str(e), end='\n\n')
         return False
+
+
+    @staticmethod
+    def format_delay(value):
+        return 'Controller updates every {} seconds'.format(value)

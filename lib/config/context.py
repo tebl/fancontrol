@@ -17,6 +17,7 @@ class InteractiveContext(LoggerMixin):
     def __init__(self, fan_config, parent):
         self.fan_config = fan_config
         self.parent = parent
+        self.section = self.fan_config.settings.SETTINGS
         self.console = self.fan_config.console
 
 
@@ -70,26 +71,22 @@ class InteractiveContext(LoggerMixin):
         self.message()
 
 
-    def add_summary_value(self, summary, title, value):
-        summary.append([title, value])
-    
-
-    def add_summary_config(self, summary, title, config_key, format_func=None, validation_func=None, format_dict=None):
+    def add_summary_value(self, summary, title, value, format_func=None, validation_func=None, format_dict=None, error=None, extended=True):
         '''
-        Add summary item that should be read from the configuration, will be
-        formatted using optional function if one has been supplied. Value
-        validation can be performed in the same manner, but note that we're
-        performing a more detailed examination of values compared to what the
-        input handler does.
+        Add summary item to the summary, will be formatted using optional
+        function if one has been supplied.
+        
+        Value validation can be performed in the same manner, but note that
+        most of the supplied validation routines will provide values in their
+        expected data formats. Such routines by default will be run in their
+        extended versions.
         '''
-        value = self.fan_config.settings.get(self.section, config_key)
-        error = None
         if not format_dict:
             format_dict = {}
 
         try:
             if validation_func:
-                value = validation_func(value, extended=True)
+                value = validation_func(value, extended=extended)
             if format_func:
                 value = format_func(value)
         except PromptValidationException as e:
@@ -100,6 +97,14 @@ class InteractiveContext(LoggerMixin):
         summary.append([title, value, format_dict])
         if error:
             summary.append([self.SUBKEY_INDENT + self.SUBKEY_CHILD + 'ERROR', error, { 'styling': InteractiveLogger.DIRECT_HIGHLIGHT }])
+    
+
+    def add_summary_config(self, summary, title, config_key, format_func=None, validation_func=None, format_dict=None, error=None):
+        '''
+        Add summary item that should be read from the configuration.
+        '''
+        value = self.fan_config.settings.get(self.section, config_key)
+        self.add_summary_value(summary, title, value, format_func=format_func, validation_func=validation_func, format_dict=format_dict, error=error)
 
 
     def validate_number(self, value, extended=True):
@@ -130,6 +135,13 @@ class InteractiveContext(LoggerMixin):
     def validate_string(self, value, extended=True):
         if not value:
             raise PromptValidationException('empty value')
+        return value
+
+
+    def validate_hwmon(self, value, extended=True):
+        hwmon_path = os.path.join(BaseControl.BASE_PATH, value)
+        if not os.path.isdir(hwmon_path):
+            raise PromptValidationException('hwmon not found')
         return value
 
 
