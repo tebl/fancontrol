@@ -10,6 +10,15 @@ ACRONYMS = [ ]
 'Acronyms used as default by the module, add anything expected to be globally true'
 
 
+class Acronym:
+    def __init__(self, value):
+        self.value = value
+
+
+    def __str__(self):
+        return self.value
+
+
 def to_sentence(*args, acronyms=None, first=True):
     '''
     Convert a series of words into something resembling a sentence, in essence
@@ -27,6 +36,8 @@ def to_sentence(*args, acronyms=None, first=True):
                 words[index] = word.lower() if not first else word[0].upper() + word[1:]
             else:
                 words[index] = to_sentence(*parts, acronyms=acronyms, first=False)
+        else:
+            words[index] = str(word)
         first = False
     return ' '.join(words)
 
@@ -36,6 +47,8 @@ def is_acronym(word, acronyms=None):
     Check whether the specified word is an acronym, meaning that it's either
     included in the list of acronyms passed to it - or it's entirely in caps.
     '''
+    if type(word) is Acronym:
+        return True
     if acronyms is None:
         acronyms = ACRONYMS
     if word in acronyms:
@@ -72,7 +85,6 @@ def pad_number(value, steps = 10):
     certain widths.
     '''
     return steps * math.ceil(value / steps)
-
 
 
 def is_pid(pid_path):

@@ -48,7 +48,7 @@ class PWMSensor(Sensor):
         return '{} (value={}, enable={})'.format(
             self.name,
             str(self.format_value(self.read_int(self.device_path))),
-            str(self.__pwm_mode_str(self.read_enable()))
+            str(self.format_enable(self.read_enable()))
         )
 
 
@@ -249,17 +249,17 @@ class PWMSensor(Sensor):
 
         self.read_original_enable()
         success = self.write_enable(self.PWM_ENABLE_MANUAL)
-        self.log_info('{} set to {} control'.format(self, self.__pwm_mode_str(self.PWM_ENABLE_MANUAL)))
+        self.log_info('{} set to {} control'.format(self, self.format_enable(self.PWM_ENABLE_MANUAL)))
         return success
 
 
-    def __pwm_mode_str(self, mode):
-        match mode:
+    def format_enable(self, value):
+        match value:
             case self.PWM_ENABLE_MANUAL:
-                return "MANUAL"
+                return "MANAGED"
             case self.PWM_ENABLE_AUTO:
-                return "AUTO"
-        return 'UNKNOWN({})'.format(str(mode))
+                return "CHIPSET"
+        return 'UNKNOWN({})'.format(str(value))
 
 
     def __pwm_state_str(self, state):
@@ -275,11 +275,11 @@ class PWMSensor(Sensor):
         return 'UNKNOWN({})'.format(str(state))
 
 
-    def write_enable(self, value, ignore_exceptions = False):
+    def write_enable(self, value, ignore_exceptions=False):
         return self.__write(self.enable_path, self.name + '_enable', value, ignore_exceptions)
 
 
-    def __write(self, path, name, pwm_value, ignore_exceptions = False):
+    def __write(self, path, name, pwm_value, ignore_exceptions=False):
         self.log_verbose('{} writing {} to {}'.format(self, str(pwm_value), name))        
         try:
             return self.write(path, pwm_value)
@@ -302,7 +302,7 @@ class PWMSensor(Sensor):
         self.log_debug('{} storing original {}_enable ({})'.format(self, self.name, str(self.original_enable)))
 
 
-    def shutdown(self, ignore_exceptions = False):
+    def shutdown(self, ignore_exceptions=False):
         '''
         Signal output sensor to shut down, this is called immediately after
         fans are called to shut down with a suggested value in requests.
@@ -312,13 +312,13 @@ class PWMSensor(Sensor):
             self.log_warning('{} had no last_enable during shutdown'.format(self))
         else:
             if self.write_enable(self.original_enable, ignore_exceptions):
-                self.log_info('{} returned to original control ({})'.format(self, self.__pwm_mode_str(self.original_enable)))
+                self.log_info('{} returned to original control ({})'.format(self, self.format_enable(self.original_enable)))
                 self.__discard_requests(warn_dropped=False)
                 return True
         
         target = PWMRequest.get_max_target(self.requests)
         if target is not None:
-            self.log_warning('{} could not return to original control ({}), setting it to {}'.format(self, self.__pwm_mode_str(self.original_enable), str(target)))
+            self.log_warning('{} could not return to original control ({}), setting it to {}'.format(self, self.format_enable(self.original_enable), str(target)))
             if self.__write(self.device_path, self.name, target, ignore_exceptions):
                 self.__discard_requests(warn_dropped=False)
                 return True
