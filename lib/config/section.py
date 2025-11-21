@@ -102,16 +102,16 @@ class SectionContext(InteractiveContext):
             items = []
 
         self.add_summary_value(items, self.NAME, self.section)
-        self.add_summary_config(items, self.DEVICE, 'device', validation_func=self.__validate_resource)
+        self.add_summary_config(items, self.DEVICE, 'device', validation_func=self.validate_hwmon_entry)
         self.__add_status(items)
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'pwm_min', format_func=utils.format_pwm, validation_func=self.__validate_pwm_min, format_dict={ 'key': self.KEY_DEVICE_MIN })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'pwm_max', format_func=utils.format_pwm, validation_func=self.__validate_pwm_max, format_dict={ 'key': self.KEY_DEVICE_MAX })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.START, 'pwm_start', format_func=utils.format_pwm, validation_func=self.validate_pwm, format_dict={ 'key': self.KEY_DEVICE_START })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.STOP, 'pwm_stop', format_func=utils.format_pwm, validation_func=self.__validate_pwm_stop, format_dict={ 'key': self.KEY_DEVICE_STOP })
-        self.add_summary_config(items, self.SENSOR, 'sensor', validation_func=self.__validate_resource)
+        self.add_summary_config(items, self.SENSOR, 'sensor', validation_func=self.validate_hwmon_entry)
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'sensor_min', format_func=utils.format_celsius, validation_func=self.__validate_sensor_min, format_dict={ 'key': self.KEY_SENSOR_MIN })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'sensor_max', format_func=utils.format_celsius, validation_func=self.validate_temp, format_dict={ 'key': self.KEY_SENSOR_MAX })
-        self.add_summary_config(items, self.PWM_INPUT, 'pwm_input', validation_func=self.__validate_resource)
+        self.add_summary_config(items, self.PWM_INPUT, 'pwm_input', validation_func=self.validate_hwmon_entry)
         return super().summary(items, sep, prefix)
 
 
@@ -142,19 +142,6 @@ class SectionContext(InteractiveContext):
         value = self.validate_temp(value, True)
         if extended and value >= self.fan_config.settings.getint(self.section, 'sensor_max'):
             raise PromptValidationException('must be less than Sensor Max')
-        return value
-
-
-    def __validate_resource(self, value, extended=False):
-        value = self.validate_string(value)
-        hwmon_name = HwmonInfo.get_hwmon_from_value(value, self.fan_config.settings.dev_base)
-        hwmon_path = os.path.join(BaseControl.BASE_PATH, hwmon_name)
-        if not os.path.isdir(hwmon_path):
-            raise PromptValidationException('hwmon not found' + hwmon_path)
-        entry_name = HwmonInfo.get_entry_from_value(value, self.fan_config.settings.dev_base)
-        entry_path = os.path.join(hwmon_path, entry_name)
-        if not os.path.isfile(entry_path):
-            raise PromptValidationException('hwmon resource not found')
         return value
 
 

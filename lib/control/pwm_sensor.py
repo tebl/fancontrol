@@ -14,6 +14,8 @@ class PWMSensor(Sensor):
     '''
     PWM_MIN = 0
     PWM_MAX = 255
+
+    ENABLE_SUFFIX = '_enable'
     
     PWM_ENABLE_MANUAL = 1
     "Manual control, meaning that the user control its value"
@@ -31,13 +33,23 @@ class PWMSensor(Sensor):
     def __init__(self, controller, settings, logger, name, device_path, auto_load=True):
         super().__init__(controller, settings, logger, name, device_path, auto_load=auto_load)
         self.original_enable = None
-        self.enable_path = device_path + "_enable"
+        self.enable_path = device_path + self.ENABLE_SUFFIX
         self.state = self.STATE_UNKNOWN
         self.requests = []
 
         self.last_value = 0
         self.target = 0
         self.scheduler = None
+
+
+    def get_title(self, include_summary=False):
+        if not include_summary:
+            return super().get_title(include_summary=False)
+        return '{} (value={}, enable={})'.format(
+            self.name,
+            str(self.format_value(self.read_int(self.device_path))),
+            str(self.__pwm_mode_str(self.read_enable()))
+        )
 
 
     def update(self):

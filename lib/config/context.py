@@ -57,6 +57,7 @@ class InteractiveContext(Context):
     MAX = 'Max'
 
     NAME = 'Name'
+    DELAY = 'Delay'
     DEVICE = 'Device'
     DEVICE_MIN = Context.to_sentence(DEVICE, MIN)
     DEVICE_MAX = Context.to_sentence(DEVICE, MAX)
@@ -203,6 +204,19 @@ class InteractiveContext(Context):
         hwmon_path = os.path.join(BaseControl.BASE_PATH, value)
         if not os.path.isdir(hwmon_path):
             raise PromptValidationException('hwmon not found')
+        return value
+
+
+    def validate_hwmon_entry(self, value, extended=True):
+        value = self.validate_string(value)
+        hwmon_name = HwmonInfo.get_hwmon_from_value(value, self.fan_config.settings.dev_base)
+        hwmon_path = os.path.join(BaseControl.BASE_PATH, hwmon_name)
+        if not os.path.isdir(hwmon_path):
+            raise PromptValidationException('hwmon not found' + hwmon_path)
+        entry_name = HwmonInfo.get_entry_from_value(value, self.fan_config.settings.dev_base)
+        entry_path = os.path.join(hwmon_path, entry_name)
+        if not os.path.isfile(entry_path):
+            raise PromptValidationException('hwmon resource not found')
         return value
 
 
@@ -380,3 +394,16 @@ class InteractiveContext(Context):
     @staticmethod
     def format_delay(value):
         return 'Controller updates every {} seconds'.format(value)
+    
+
+    @staticmethod
+    def format_resource(value, extended=True):
+        '''
+        Expects an object that has a function called get_title
+        '''
+        if value is None:
+            return ''
+        get_title = getattr(value, 'get_title', None)
+        if hasattr(value, 'get_title'):
+            return value.get_title(include_summary=extended)
+        return str(value)

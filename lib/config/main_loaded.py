@@ -1,5 +1,5 @@
 import uuid
-from ..logger import Logger, InteractiveLogger, PromptBuilder
+from ..logger import Logger, InteractiveLogger, PromptBuilder, PromptValidationException
 from ..exceptions import ConfigurationError
 from .context import InteractiveContext
 from .main_complete import MainCompleteContext
@@ -40,8 +40,8 @@ class MainLoadedContext(InteractiveContext):
         if items is None:
             items = []
 
-        self.add_summary_value(items, 'Delay', self.fan_config.delay, format_func=self.format_delay, validation_func=self.validate_exists)
-        self.add_summary_value(items, 'Device', self.fan_config.get_path(), validation_func=self.validate_exists)
+        self.add_summary_value(items, self.DELAY, self.fan_config.delay, format_func=self.format_delay, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.DEVICE, self.fan_config.get_path(), validation_func=self.validate_exists)
         self.add_summary_value(items, self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path, validation_func=self.validate_exists)
         self.add_summary_value(items, self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name, validation_func=self.validate_exists)
         return super().summary(items, sep, prefix)
@@ -67,6 +67,15 @@ class MainLoadedContext(InteractiveContext):
         if not self.fan_config.settings.is_enabled(section):
             styling = Logger.WARNING
             terms.append('disabled')
+
+        for key in [ 'device', 'sensor', 'pwm_input' ]:
+            try:
+                value = self.fan_config.settings.get(section, key)
+                terms.append('{}={}'.format(key, value))
+                value = self.validate_hwmon_entry(value)
+            except PromptValidationException as e:
+                styling = Logger.ERROR
+
         if terms:
             description = '{} ({})'.format(description, ', '.join(terms))
         self.message(self.SUBKEY_INDENT + description, styling=styling)

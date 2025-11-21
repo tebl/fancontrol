@@ -7,11 +7,9 @@ class TemperatureSensor(Sensor):
         super().__init__(controller, settings, logger, name, device_path, auto_load=auto_load)
 
 
-    def get_value(self):
-        if self.value == None:
-            return None
-        return self.value / 1000.0
-    
-
     def format_value(self, value):
         return str(value) + "°C"
+
+
+    def read_int(self, sensor_path):
+        return super().read_int(sensor_path) / 1000.0

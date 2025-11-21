@@ -13,17 +13,6 @@ class ControlFanContext(InteractiveContext):
     def interact(self, auto_select=None):
         self.summary()
 
-        # self.summary([
-        #     ['Controlled by', self.fan.device],
-        #     [self.SUBKEY_INDENT + 'Minimum', utils.format_pwm(self.fan.pwm_min)],
-        #     [self.SUBKEY_INDENT + 'Maximum', utils.format_pwm(self.fan.pwm_max)],
-        #     [self.SUBKEY_INDENT + 'Start', utils.format_pwm(self.fan.pwm_start)],
-        #     [self.SUBKEY_INDENT + 'Stop', utils.format_pwm(self.fan.pwm_stop)],
-        #     ['Based on', self.fan.sensor],
-        #     [self.SUBKEY_INDENT + 'Minimum', utils.format_celsius(self.fan.sensor_min)],
-        #     [self.SUBKEY_INDENT + 'Maximum', utils.format_celsius(self.fan.sensor_max)]
-        # ])
-
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self.fan.get_title(), auto_select=auto_select)
         match input:
             case None | 'x':
@@ -40,29 +29,17 @@ class ControlFanContext(InteractiveContext):
         if items is None:
             items = []
 
-        self.add_summary_value(items, SectionContext.DEVICE_MIN, 'test')
-
+        self.add_summary_value(items, self.NAME, self.fan.get_title())
+        self.add_summary_value(items, self.DEVICE, self.fan.device, format_func=self.format_resource, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MINIMUM, self.fan.pwm_min, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MAXIMUM, self.fan.pwm_max, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.START, self.fan.pwm_start, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.STOP, self.fan.pwm_stop, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SENSOR, self.fan.sensor, format_func=self.format_resource, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MINIMUM, self.fan.sensor_min, format_func=utils.format_celsius, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MAXIMUM, self.fan.sensor_max, format_func=utils.format_celsius, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.PWM_INPUT, self.fan.pwm_input, format_func=self.format_resource, validation_func=self.validate_exists)
         return super().summary(items, sep, prefix)
-
-
-    # def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
-    #     # This is needed as changing items to a default value of [] would cause
-    #     # it to be reused across all function calls. Apparently Python does that.
-    #     if items is None:
-    #         items = []
-
-    #     self.add_summary_value(items, self.NAME, self.section)
-    #     self.add_summary_config(items, self.DEVICE, 'device', validation_func=self.__validate_resource)
-    #     self.__add_status(items)
-    #     self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'pwm_min', format_func=utils.format_pwm, validation_func=self.__validate_pwm_min, format_dict={ 'key': self.KEY_DEVICE_MIN })
-    #     self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'pwm_max', format_func=utils.format_pwm, validation_func=self.__validate_pwm_max, format_dict={ 'key': self.KEY_DEVICE_MAX })
-    #     self.add_summary_config(items, self.SUBKEY_CHILD + self.START, 'pwm_start', format_func=utils.format_pwm, validation_func=self.validate_pwm, format_dict={ 'key': self.KEY_DEVICE_START })
-    #     self.add_summary_config(items, self.SUBKEY_CHILD + self.STOP, 'pwm_stop', format_func=utils.format_pwm, validation_func=self.__validate_pwm_stop, format_dict={ 'key': self.KEY_DEVICE_STOP })
-    #     self.add_summary_config(items, self.SENSOR, 'sensor', validation_func=self.__validate_resource)
-    #     self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'sensor_min', format_func=utils.format_celsius, validation_func=self.__validate_sensor_min, format_dict={ 'key': self.KEY_SENSOR_MIN })
-    #     self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'sensor_max', format_func=utils.format_celsius, validation_func=self.validate_temp, format_dict={ 'key': self.KEY_SENSOR_MAX })
-    #     self.add_summary_config(items, self.PWM_INPUT, 'pwm_input', validation_func=self.__validate_resource)
-    #     return super().summary(items, sep, prefix)
 
 
     def __get_prompt_builder(self):
