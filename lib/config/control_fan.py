@@ -48,6 +48,7 @@ class ControlFanContext(InteractiveContext):
 
     def __save_state(self):
         self.original_enable = self.__read_enable()
+        self.managing = (self.original_enable == PWMSensor.PWM_ENABLE_MANUAL)
         self.original_value = self.__read_value()
 
 
@@ -138,24 +139,21 @@ class ControlFanContext(InteractiveContext):
             case None | 'x':
                 return (self.parent, input)
             case self.KEY_SET_CHIPSET:
-                return (self.__handle_set_enable(PWMSensor.PWM_ENABLE_AUTO), input)
+                return (self.__handle_set_enable(PWMSensor.PWM_ENABLE_AUTO, end='\n\n'), input)
             case self.KEY_SET_MANAGED:
-                return (self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL), input)
+                return (self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL, end='\n\n'), input)
             case self.KEY_SET_ZERO:
                 return (self.__handle_set_specific(self.fan.PWM_MIN), input)
             case self.KEY_SET_FULL:
                 return (self.__handle_set_specific(self.fan.PWM_MAX), input)
             case self.KEY_SET_VALUE:
                 return (self.__handle_set_value(), input)
-            case _:
-                self.message('You entered ' + input, end='\n\n')
-                return (self, input)
         return (self, None)
 
 
-    def __handle_set_enable(self, value):
+    def __handle_set_enable(self, value, end='\n'):
         self.__write_enable(value, ignore_exceptions=False)
-        self.message('PWM enable set to {}'.format(self.fan.device.format_enable(value)), end='\n\n')
+        self.message('PWM enable set to {}'.format(self.fan.device.format_enable(value)), end=end)
         self.managing = (value == PWMSensor.PWM_ENABLE_MANUAL)
         return self
     
@@ -169,11 +167,22 @@ class ControlFanContext(InteractiveContext):
 
 
     def __ensure_managed(self):
-        if not self.managing:
-            return False
-        #     self.error('Need to set {} first'.format(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL)), end='\n\n')
-        #     return self
-        return True
+        if self.managing:
+            return True
+
+        warning = (
+            'WARNING! In order to perform this action, the fan needs to set'
+            'to {}.'
+        ).format(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))
+
+        self.message()
+        self.message(warning, Logger.WARNING, end='\n\n')
+        self.message('Do you want to do this now?', InteractiveLogger.DIRECT_HIGHLIGHT)
+        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM) == 'y':
+            self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL)
+            return True
+        self.message()
+        return False
 
 
     def __handle_set_value(self):
@@ -198,5 +207,7 @@ class ControlFanContext(InteractiveContext):
         self.message(warning, Logger.WARNING, end='\n\n')
 
         if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM, auto_select=auto_select) == 'y':
+            self.message()
             return self
+        self.message()
         return self.parent
