@@ -1,8 +1,5 @@
-import os, string
 from ..exceptions import *
-from ..control import BaseControl
-from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
-from ..hwmon_info import HwmonInfo
+from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from .context import InteractiveContext
 
 
@@ -13,11 +10,7 @@ class HWMONContext(InteractiveContext):
 
 
     def interact(self, auto_select=None):
-        self.summary([
-            [self.DEVICE, self.fan_config.settings.dev_base],
-            [self.SUBKEY_CHILD + 'Path check', self.fan_config.settings.dev_path],
-            [self.SUBKEY_CHILD + 'Driver check', self.fan_config.settings.dev_name]
-        ])
+        self.summary()
 
         self.hwmon = self.hwmon_load(self.__is_suitable)
         self.hwmon_list(self.hwmon, current=self.fan_config.settings.dev_base)
@@ -30,7 +23,17 @@ class HWMONContext(InteractiveContext):
                 self.__change_hwmon(self.prompt_values[input])
                 return self.parent
         return self
-    
+
+
+    def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
+        # This is needed as changing items to a default value of [] would cause
+        # it to be reused across all function calls. Apparently Python does that.
+        if items is None:
+            items = []
+
+        self.parent.add_summary_logging(items)
+        return super().summary(items, sep, prefix)
+
 
     def __is_suitable(self, hwmon_entry):
         return hwmon_entry.devices and hwmon_entry.sensors and hwmon_entry.pwm_inputs

@@ -1,4 +1,4 @@
-from ..logger import LoggerMixin, Logger, InteractiveLogger, PromptBuilder
+from ..logger import Logger, PromptBuilder
 from ..ansi import ANSIFormatter
 from .context import InteractiveContext
 
@@ -13,13 +13,9 @@ class LoggingContext(InteractiveContext):
 
 
     def interact(self, auto_select=None):
-        self.summary([
-            [self.LOG_USING, self.fan_config.settings.log_using],
-            [self.SUBKEY_CHILD + self.LOG_FORMATTING, self.fan_config.settings.log_formatter],
-            [self.SUBKEY_CHILD + self.LOG_LEVEL, self.fan_config.settings.log_level],
-        ])
+        self.summary()
 
-        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=None)
+        input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=auto_select)
         match input:
             case None | 'x':
                 return self.parent
@@ -43,6 +39,16 @@ class LoggingContext(InteractiveContext):
                 self.fan_config.settings.save()
                 self.__explain_using(self.LOG_USING, value)
         return self
+
+
+    def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
+        # This is needed as changing items to a default value of [] would cause
+        # it to be reused across all function calls. Apparently Python does that.
+        if items is None:
+            items = []
+
+        self.parent.add_summary_logging(items)
+        return super().summary(items, sep, prefix)
 
 
     def __toggle_level(self, current):

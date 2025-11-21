@@ -1,5 +1,4 @@
-import traceback
-from ..logger import PromptBuilder, Logger
+from ..logger import PromptBuilder
 from ..exceptions import ConfigurationError
 from .. import PACKAGE
 from .context import InteractiveContext
@@ -37,10 +36,14 @@ class MainContext(InteractiveContext):
         self.add_summary_config(items, 'Device', 'dev_base', validation_func=self.validate_hwmon)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Path checked', 'dev_path', validation_func=self.validate_string)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Driver checked', 'dev_name', validation_func=self.validate_string)
+        self.add_summary_logging(items)
+        return super().summary(items, sep, prefix)
+
+
+    def add_summary_logging(self, items):
         self.add_summary_config(items, LoggingContext.LOG_USING, 'log_using')
         self.add_summary_config(items, self.SUBKEY_CHILD + LoggingContext.LOG_FORMATTING, 'log_formatter', validation_func=self.validate_string)
         self.add_summary_config(items, self.SUBKEY_CHILD + LoggingContext.LOG_LEVEL, 'log_level', validation_func=self.validate_string)
-        return super().summary(items, sep, prefix)
 
 
     def __get_prompt_builder(self):
@@ -60,5 +63,5 @@ class MainContext(InteractiveContext):
                 self.message('Configuration loaded.', end='\n\n')
             return True
         except ConfigurationError as e:
-            self.print_configuration_error(e)
+            self.print_error(e, title='Configuration error')
         return False

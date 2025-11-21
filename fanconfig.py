@@ -54,6 +54,7 @@ def main():
     parser.add_argument('--pid-file', type=utils.is_pid, default='fancontrol.pid', help='Specify pid path')
     parser.add_argument('-z', '--zap-pid', action='store_true', help='Remove pid if it exists')
     parser.add_argument('-a', '--auto-key', help='Auto-navigate using keys specified')
+    parser.add_argument('--dev-debug', action='store_true', help='Enable some stack traces upon errors')
     utils.add_interactive_arguments(parser)
     args = parser.parse_args()
 
@@ -63,7 +64,7 @@ def main():
         console = utils.get_interactive_logger(PACKAGE_NAME, args, auto_flush=True)
         console.log_direct('Starting {} {}'.format(FanConfig.__name__, PACKAGE_VERSION), end='\n\n')
         with PIDFile(logger, args.pid_file, zap_if_exists=args.zap_pid):
-            tune = FanConfig(settings, logger, console)
+            tune = FanConfig(settings, logger, console, dev_debug=args.dev_debug)
             tune.control(auto_select=get_auto_keys(args.auto_key))
     except ConfigurationError as e:
         console.log_error('Problem in configuration:')

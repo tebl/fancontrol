@@ -369,8 +369,8 @@ class InteractiveContext(Context):
         return None
 
 
-    def print_configuration_error(self, exception):
-        self.error('Configuration error: ' + str(exception))
+    def print_error(self, exception, title='Exception'):
+        self.error('{}: {}'.format(title, str(exception)))
         if self.fan_config.dev_debug:
             error_str = traceback.format_exc()
             self.message(error_str, styling=Logger.DEBUG)
