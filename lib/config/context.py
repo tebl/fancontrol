@@ -98,14 +98,12 @@ class InteractiveContext(Context):
         return self.parent
     
 
-    def message(self, message='', styling=InteractiveLogger.DIRECT_REGULAR, end='\n'):
-        self.console.log_direct(message, styling=styling, end=end)
-    @staticmethod
-    def format_delay(value):
-        return 'Controller updates every {} seconds'.format(value)
+    def message(self, message='', styling=InteractiveLogger.DIRECT_REGULAR, end='\n', flow_text=False):
+        self.console.log_direct(message, styling=styling, end=end, flow_text=flow_text)
 
-    def error(self, message, styling=Logger.ERROR, end='\n'):
-        self.message(message, styling=styling, end=end)
+
+    def error(self, message, styling=Logger.ERROR, end='\n', flow_text=False):
+        self.message(message, styling=styling, end=end, flow_text=flow_text)
 
 
     def summary(self, items=None, sep=': ', prefix=SUBKEY_INDENT):

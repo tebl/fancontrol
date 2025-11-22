@@ -287,14 +287,23 @@ class InteractiveLogger(ConsoleLogger):
         super().__init__(log_name, filter_level, auto_flush, formatter)
 
 
-    def log_direct(self, message, styling=DIRECT_REGULAR, end='\n'):
+    def log_direct(self, message, styling=DIRECT_REGULAR, end='\n', flow_text=False):
+        if flow_text:
+            message = self.format_flowing(message)
         if self.formatter and not self.formatter.is_monochrome:
             message = self.format_ansi(message, styling)
         print(message, flush=self.auto_flush, end=end)
 
 
-    def log_error(self, message, end='\n'):
-        self.log_direct(message, styling=Logger.ERROR, end=end)
+    def log_error(self, message, end='\n', flow_text=False):
+        self.log_direct(message, styling=Logger.ERROR, end=end, flow_text=flow_text)
+
+
+    def format_flowing(self, message):
+        '''
+        TODO: Implement this
+        '''
+        return message
 
 
     def get_format_func(self, entry_type):

@@ -1,11 +1,22 @@
+import time
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
-from ..exceptions import SensorException, ControlRuntimeError
+from ..exceptions import SensorException, ControlRuntimeError, SchedulerLimitExceeded
 from ..control import PWMSensor
+from ..scheduler import MicroScheduler
 from .. import utils
 from .context import InteractiveContext
 
 
 class ControlFanContext(InteractiveContext):
+    KEY_SET_FULL = 'f'
+    KEY_SET_ZERO = '0'
+    KEY_SET_MANAGED = 'm'
+    KEY_SET_CHIPSET = 'c'
+    KEY_SET_REFRESH = 'r'
+    KEY_SET_VALUE = 'v'
+    KEY_SET_TEST = 't'
+
+
     def __init__(self, *args, fan):
         super().__init__(*args)
         self.fan = fan
@@ -15,8 +26,16 @@ class ControlFanContext(InteractiveContext):
 
 
     def interact(self, auto_select=None):
-        if not self.__confirm_warning(auto_select) == self:
+        if not self.__confirm_usage(auto_select):
             return self.parent
+
+        msg = (
+            'Notice: This interface works with a combination of values, both '
+            'from the program itself and the underlying driver. This will '
+            'give the appearance of values not updating directly after '
+            'issuing commands.'
+        )
+        self.message(msg, end='\n\n')
 
         try:
             self.__save_state()
@@ -25,7 +44,7 @@ class ControlFanContext(InteractiveContext):
                 self.summary()
 
                 input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self.get_prompt(), auto_select=auto_select)
-                result, key = self.__match_actions(input)
+                result, key = self.__match_actions(input, auto_select)
             
                 if result == self:
                     continue
@@ -46,6 +65,241 @@ class ControlFanContext(InteractiveContext):
         return ' '.join(terms)
 
 
+    def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
+        # This is needed as changing items to a default value of [] would cause
+        # it to be reused across all function calls. Apparently Python does that.
+        if items is None:
+            items = []
+        
+        self.add_summary_value(items, self.NAME, self.fan.get_title())
+        self.add_summary_value(items, self.DEVICE, self.fan.device, format_func=self.format_resource, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MINIMUM, self.fan.pwm_min, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MAXIMUM, self.fan.pwm_max, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.START, self.fan.pwm_start, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.STOP, self.fan.pwm_stop, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SENSOR, self.fan.sensor, format_func=self.format_resource, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MINIMUM, self.fan.sensor_min, format_func=utils.format_celsius, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.MAXIMUM, self.fan.sensor_max, format_func=utils.format_celsius, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.PWM_INPUT, self.fan.pwm_input, format_func=self.format_resource, validation_func=self.validate_exists)
+        return super().summary(items, sep, prefix)
+
+
+    def __get_prompt_builder(self):
+        builder = PromptBuilder(self.console)
+        builder.set(self.KEY_SET_MANAGED, self.to_sentence(self.SET, utils.Acronym(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))))
+        builder.set(self.KEY_SET_CHIPSET, self.to_sentence(self.SET, utils.Acronym(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_AUTO))))
+        builder.set(self.KEY_SET_FULL, 'Set to full')
+        builder.set(self.KEY_SET_ZERO, 'Set to zero')
+        builder.set(self.KEY_SET_REFRESH, 'Refresh')
+        builder.set(self.KEY_SET_VALUE, 'Set value')        
+        builder.set(self.KEY_SET_TEST, 'Test fan limits')        
+        builder.add_back()
+        return builder
+    
+
+    def __match_actions(self, input, auto_select=None):
+        match input:
+            case None | 'x':
+                return (self.parent, input)
+            case self.KEY_SET_CHIPSET:
+                self.__handle_set_enable(PWMSensor.PWM_ENABLE_AUTO, end='\n\n')
+            case self.KEY_SET_MANAGED:
+                self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL, end='\n\n')
+            case self.KEY_SET_ZERO:
+                self.__handle_set_specific(self.fan.PWM_MIN)
+            case self.KEY_SET_FULL:
+                self.__handle_set_specific(self.fan.PWM_MAX)
+            case self.KEY_SET_VALUE:
+                self.__handle_set_value()
+            case self.KEY_SET_TEST:
+                self.__handle_test(auto_select=auto_select)
+        return (self, input)
+
+
+    def __handle_set_enable(self, value, end='\n'):
+        self.__write_enable(value, ignore_exceptions=False)
+        self.message('PWM enable set to {}'.format(self.fan.device.format_enable(value)), end=end)
+        self.managing = (value == PWMSensor.PWM_ENABLE_MANUAL)
+        return True
+    
+
+    def __handle_set_specific(self, value):
+        if not self.__ensure_managed():
+            return False
+        self.__write_value(value)
+        self.message('PWM value set to {}'.format(value), end='\n\n')
+        return True
+
+
+    def __handle_set_value(self):
+        if not self.__ensure_managed():
+            return False
+        self.message()
+        self.message('Set PWM value:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
+        input = self.console.prompt_input('Enter value', allow_blank=True, validation_func=self.validate_pwm)
+        if input:
+            return self.__handle_set_specific(input)
+        return True
+
+
+    def __confirm_usage(self, auto_select=None):
+        warning = (
+            'WARNING! This interface allows the control over fans directly. '
+            'This means that you can potentially shut off something that '
+            'keeps your hardware from destroying itself. The author does not'
+            'take any responsibility for YOUR actions while using this '
+            'software.'
+        )
+        return self.__confirm_warning(warning, auto_select=auto_select)
+    
+
+    def __handle_test(self, auto_select=None):
+        '''
+        Perform fan behavior testing, used to test how a fan responds to 
+        various PWM-values.
+        '''
+        # We really need a confirmation here
+        # if auto_select:
+        #     auto_select.clear()
+
+        self.message()
+        warning = (
+            'WARNING! This function needs to take control over the fan by '
+            'setting the mode to {}. We will then go through a series of '
+            'operations in order to determine the physical behavior of it, '
+            'quite possibly leaving you with insufficient cooling. Do NOT '
+            'continue unless you know what this means for your system.'
+        ).format(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))
+        if not self.__confirm_warning(warning, auto_select=auto_select):
+            return False
+        try:
+            local_enable = self.__read_enable()
+            local_value = self.__read_value()
+
+            self.__perform_testing()
+            self.message()
+            return True
+        except TestAbortedException as e:
+            self.error('Tests aborted: {}'.format(e.message), end='\n\n')
+        finally:
+            self.__write_value(local_value)
+            self.__write_enable(local_enable)
+        return False
+
+
+    def __perform_testing(self):
+        device_stop = None
+
+        with TestContextManager(self, 'Testing ' + self.fan.get_title(), inline=False) as parent_context:
+            self.__write_enable(PWMSensor.PWM_ENABLE_MANUAL)
+
+            with TestContextManager(self, 'Stopping fan', parent_context=parent_context) as test_context:
+                self.__write_value(self.fan.PWM_MIN)
+                try:
+                    self.__wait_period(limit=20, check_completed_func=self.__check_stopped)
+                except SchedulerLimitExceeded:
+                    raise TestAbortedException('fan never stopped - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
+
+            with TestContextManager(self, 'Setting fan to MAX', status_ok='done', parent_context=parent_context) as test_context:
+                self.__write_value(self.fan.PWM_MAX)
+
+            with TestContextManager(self, 'Waiting 10 seconds', status_ok='done', parent_context=parent_context) as test_context:
+                self.__wait_period(limit=10)
+
+            with TestContextManager(self, 'Verifying that it started', parent_context=parent_context) as test_context:
+                try:
+                    self.__wait_period(limit=10, check_completed_func=self.__check_started, notify_status=test_context, status_format_func=utils.format_rpm)
+                except SchedulerLimitExceeded:
+                    raise TestAbortedException('fan never stopped - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
+
+            with TestContextManager(self, 'Find ' + self.DEVICE_STOP, parent_context=parent_context) as test_context:
+                for value in range(self.fan.PWM_MAX, self.fan.PWM_MIN, -10):
+                    test_context.debug(value)
+                    self.__write_value(value)
+                    try:
+                        if self.__wait_period(step_delay=0.5, limit=4, check_completed_func=self.__check_stopped):
+                            device_stop = value
+                            test_context.set_status(device_stop)
+                            break
+                    except SchedulerLimitExceeded:
+                        pass
+                raise TestAbortedException('fan never stopped - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
+        
+        self.message('Detected {}: {}'.format(self.DEVICE_STOP, utils.format_pwm(device_stop)))
+
+
+    def __wait_period(self, step_delay=1, limit=None, check_completed_func=None, notify_status=None, status_format_func=None):
+        '''
+        '''
+        scheduler = MicroScheduler(self.fan_config.logger, step_delay=step_delay, limit=limit)
+        scheduler.set_next()
+        while self.fan_config.running:
+            if scheduler.was_passed():
+                try:
+                    scheduler.set_next()
+                except SchedulerLimitExceeded:
+                    # If we have a check function, but reached the limit then
+                    # we've we've had a timeout error. Without one set we
+                    # instead assume that a timeout is what we wanted in the
+                    # first place.
+                    if check_completed_func is not None:
+                        raise
+                    return False
+            else:
+                time.sleep(.3)
+            if check_completed_func is not None:
+                result = check_completed_func()
+                if result:
+                    if notify_status is not None:
+                        notify_msg = result
+                        if status_format_func:
+                            notify_msg = status_format_func(result)
+                        notify_status.set_status(notify_msg)
+                    return True
+        return False
+
+
+    def __check_stopped(self):
+        '''
+        Verify that the fan has come to a full stop
+        '''
+        return self.__read_rpm() == 0
+
+
+    def __check_started(self):
+        return self.__read_rpm()
+
+
+    def __confirm_warning(self, warning, auto_select=None):
+        'Displays warning message then prompts the user to pick an option'
+        self.message(warning, Logger.WARNING, end='\n\n')
+        self.message('Do you want to continue?', InteractiveLogger.DIRECT_HIGHLIGHT)
+        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM, auto_select=auto_select) == 'y':
+            self.message()
+            return True
+        self.message()
+        return False
+
+
+    def __ensure_managed(self):
+        '''
+        Some functions can only be performed while a fan is directly
+        controlled, but we need to ask for a confirmation before doing so.
+        '''
+        if self.managing:
+            return True
+
+        warning = (
+            'WARNING! In order to perform this action, control over the fan '
+            'needs to set to {}.'
+        ).format(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))
+
+        if self.__confirm_warning(warning):
+            self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL)
+            return True
+        return False
+
+
     def __save_state(self):
         self.original_enable = self.__read_enable()
         self.managing = (self.original_enable == PWMSensor.PWM_ENABLE_MANUAL)
@@ -62,6 +316,10 @@ class ControlFanContext(InteractiveContext):
 
     def __read_value(self):
         return self.fan.device.read_int(self.fan.device.device_path)
+
+
+    def __read_rpm(self):
+        return self.fan.pwm_input.read_int(self.fan.pwm_input.device_path)
 
 
     def __write_value(self, value, ignore_exceptions=False):
@@ -90,124 +348,72 @@ class ControlFanContext(InteractiveContext):
                 changes = True
                 self.__write_enable(self.original_enable, ignore_exceptions=True)
                 self.message('Restored original enable: {}'.format(self.fan.device.format_enable(self.original_enable)))
-
         if changes:
             self.message()
 
 
-    def summary(self, items=None, sep=': ', prefix=InteractiveContext.SUBKEY_INDENT):
-        # This is needed as changing items to a default value of [] would cause
-        # it to be reused across all function calls. Apparently Python does that.
-        if items is None:
-            items = []
-
-        self.add_summary_value(items, self.NAME, self.fan.get_title())
-        self.add_summary_value(items, self.DEVICE, self.fan.device, format_func=self.format_resource, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.SUBKEY_CHILD + self.MINIMUM, self.fan.pwm_min, format_func=utils.format_pwm, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.SUBKEY_CHILD + self.MAXIMUM, self.fan.pwm_max, format_func=utils.format_pwm, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.SUBKEY_CHILD + self.START, self.fan.pwm_start, format_func=utils.format_pwm, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.SUBKEY_CHILD + self.STOP, self.fan.pwm_stop, format_func=utils.format_pwm, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.SENSOR, self.fan.sensor, format_func=self.format_resource, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.SUBKEY_CHILD + self.MINIMUM, self.fan.sensor_min, format_func=utils.format_celsius, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.SUBKEY_CHILD + self.MAXIMUM, self.fan.sensor_max, format_func=utils.format_celsius, validation_func=self.validate_exists)
-        self.add_summary_value(items, self.PWM_INPUT, self.fan.pwm_input, format_func=self.format_resource, validation_func=self.validate_exists)
-        return super().summary(items, sep, prefix)
+class TestContextManager:
+    def __init__(self, context, message, styling=Logger.DEBUG, status_ok='OK', status_fail='FAILED', inline=True, parent_context=None):
+        self.context = context
+        self.message = message
+        self.styling = styling
+        self.status_ok = status_ok
+        self.status_fail = status_fail
+        self.inline = inline
+        self.parent = parent_context
+        self.indent_number = 0
+        if parent_context:
+            self.indent_number = parent_context.next_indent()
+        self.status = None
 
 
-    KEY_SET_FULL = 'f'
-    KEY_SET_ZERO = '0'
-    KEY_SET_MANAGED = 'm'
-    KEY_SET_CHIPSET = 'c'
-    KEY_SET_REFRESH = 'r'
-    KEY_SET_VALUE = 'v'
+    def set_status(self, status):
+        self.status = str(status)
 
 
-    def __get_prompt_builder(self):
-        builder = PromptBuilder(self.console)
-        builder.set(self.KEY_SET_MANAGED, self.to_sentence(self.SET, utils.Acronym(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))))
-        builder.set(self.KEY_SET_CHIPSET, self.to_sentence(self.SET, utils.Acronym(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_AUTO))))
-        builder.set(self.KEY_SET_FULL, 'Set to full')
-        builder.set(self.KEY_SET_ZERO, 'Set to zero')
-        builder.set(self.KEY_SET_REFRESH, 'Refresh')
-        builder.set(self.KEY_SET_VALUE, 'Set value')        
-        builder.add_back()
-        return builder
-    
-
-    def __match_actions(self, input):
-        match input:
-            case None | 'x':
-                return (self.parent, input)
-            case self.KEY_SET_CHIPSET:
-                return (self.__handle_set_enable(PWMSensor.PWM_ENABLE_AUTO, end='\n\n'), input)
-            case self.KEY_SET_MANAGED:
-                return (self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL, end='\n\n'), input)
-            case self.KEY_SET_ZERO:
-                return (self.__handle_set_specific(self.fan.PWM_MIN), input)
-            case self.KEY_SET_FULL:
-                return (self.__handle_set_specific(self.fan.PWM_MAX), input)
-            case self.KEY_SET_VALUE:
-                return (self.__handle_set_value(), input)
-        return (self, None)
+    def get_result(self, result):
+        if self.status:
+            result = '{} ({})'.format(result, self.status)
+        return result
 
 
-    def __handle_set_enable(self, value, end='\n'):
-        self.__write_enable(value, ignore_exceptions=False)
-        self.message('PWM enable set to {}'.format(self.fan.device.format_enable(value)), end=end)
-        self.managing = (value == PWMSensor.PWM_ENABLE_MANUAL)
-        return self
-    
+    def get_indent(self):
+        if self.indent_number == 0:
+            return ''
+        if self.indent_number == 1:
+            return self.context.SUBKEY_CHILD
+        return self.context.SUBKEY_INDENT*(self.indent_number - 1) + self.context.SUBKEY_CHILD
 
-    def __handle_set_specific(self, value):
-        if not self.__ensure_managed():
-            return self
-        self.__write_value(value)
-        self.message('PWM value set to {}'.format(value), end='\n\n')
+
+    def next_indent(self):
+        return self.indent_number + 1
+
+
+    def debug(self, message):
+        message = str(message)
+        if self.inline:
+            self.context.message(message, styling=Logger.DEBUG, end=' ')
+            return
+        message = '{}{}'.format(self.get_indent(), message)
+        self.context.message(message, styling=Logger.DEBUG)
+
+
+    def __enter__(self):
+        end = '' if self.inline else '\n'
+        self.context.message('{}{}... '.format(self.get_indent(), self.message), styling=self.styling, end=end)
         return self
 
 
-    def __ensure_managed(self):
-        if self.managing:
-            return True
-
-        warning = (
-            'WARNING! In order to perform this action, the fan needs to set'
-            'to {}.'
-        ).format(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))
-
-        self.message()
-        self.message(warning, Logger.WARNING, end='\n\n')
-        self.message('Do you want to do this now?', InteractiveLogger.DIRECT_HIGHLIGHT)
-        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM) == 'y':
-            self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL)
-            return True
-        self.message()
-        return False
+    def __exit__(self, exc_type, exc_value, traceback):
+        prefix = '' if self.inline else self.get_indent() + '... '
+        if exc_type is None:
+            self.context.message('{}{}'.format(prefix, self.get_result(self.status_ok)), styling=self.styling)
+        else:
+            self.context.message('{}{}'.format(prefix, self.get_result(self.status_fail)), styling=self.styling)
+        return False    
 
 
-    def __handle_set_value(self):
-        if not self.__ensure_managed():
-            return self
-        self.message()
-        self.message('Set PWM value:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
-        input = self.console.prompt_input('Enter value', allow_blank=True, validation_func=self.validate_pwm)
-        if input:
-            return self.__handle_set_specific(input)
-        return self
-
-
-    def __confirm_warning(self, auto_select=None):
-        warning = (
-            'WARNING! This interface allows the control over fans directly, '
-            'meaning that you can potentially shut off something that keeps '
-            'your hardware from destroying itself. The author does not take '
-            'any responsibility for YOUR actions while using this software. '
-            'Please confirm that you understand.'
-        )
-        self.message(warning, Logger.WARNING, end='\n\n')
-
-        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM, auto_select=auto_select) == 'y':
-            self.message()
-            return self
-        self.message()
-        return self.parent
+class TestAbortedException(ControlRuntimeError):
+    '''
+    Used during fan behavior testing.
+    '''
