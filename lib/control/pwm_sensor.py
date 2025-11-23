@@ -299,7 +299,7 @@ class PWMSensor(Sensor):
 
     def read_original_enable(self):
         self.original_enable = self.read_enable()
-        self.log_debug('{} storing original {}_enable ({})'.format(self, self.name, str(self.original_enable)))
+        self.log_debug('{} storing original {}_enable ({})'.format(self, self.name, self.format_enable(self.original_enable)))
 
 
     def shutdown(self, ignore_exceptions=False):

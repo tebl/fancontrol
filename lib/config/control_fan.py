@@ -185,10 +185,6 @@ class ControlFanContext(InteractiveContext):
         Perform fan behavior testing, used to test how a fan responds to 
         various PWM-values.
         '''
-        # We really need a confirmation here
-        # if auto_select:
-        #     auto_select.clear()
-
         self.message()
         warning = (
             'WARNING! This function needs to take control over the fan by '
@@ -240,6 +236,7 @@ class ControlFanContext(InteractiveContext):
         self.fan_config.settings.set(self.fan.name, 'pwm_max', device_max)
         self.fan_config.settings.set(self.fan.name, 'pwm_start', device_start)
         self.fan_config.settings.set(self.fan.name, 'pwm_stop', device_stop)
+        self.fan_config.settings.save()
 
 
     def __perform_testing(self, device_min, device_max, step_size=10):
