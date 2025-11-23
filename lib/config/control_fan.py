@@ -1,8 +1,9 @@
-import time
+import time, itertools
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder
 from ..exceptions import SensorException, ControlRuntimeError, SchedulerLimitExceeded
 from ..control import PWMSensor
 from ..scheduler import MicroScheduler
+from ..pwm_iterator import PWMIterator
 from .. import utils
 from .context import InteractiveContext
 
@@ -15,6 +16,8 @@ class ControlFanContext(InteractiveContext):
     KEY_SET_REFRESH = 'r'
     KEY_SET_VALUE = 'v'
     KEY_SET_TEST = 't'
+    KEY_SET_KEEP = 'k'
+    KEY_SET_SIMULATE = 's'
 
 
     def __init__(self, *args, fan):
@@ -92,7 +95,9 @@ class ControlFanContext(InteractiveContext):
         builder.set(self.KEY_SET_ZERO, 'Set to zero')
         builder.set(self.KEY_SET_REFRESH, 'Refresh')
         builder.set(self.KEY_SET_VALUE, 'Set value')        
-        builder.set(self.KEY_SET_TEST, 'Test fan limits')        
+        builder.set(self.KEY_SET_TEST, 'Test fan limits')
+        builder.set(self.KEY_SET_KEEP, 'Keep current values')
+        builder.set(self.KEY_SET_SIMULATE, 'Simulate')
         builder.add_back()
         return builder
     
@@ -113,6 +118,13 @@ class ControlFanContext(InteractiveContext):
                 self.__handle_set_value()
             case self.KEY_SET_TEST:
                 self.__handle_test(auto_select=auto_select)
+            case self.KEY_SET_KEEP:
+                self.message('Current driver settings will be kept on exit.', end='\n\n')
+                self.__save_state()
+            case self.KEY_SET_REFRESH:
+                self.message()
+            case self.KEY_SET_SIMULATE:
+                self.__handle_simulate()
         return (self, input)
 
 
@@ -150,10 +162,25 @@ class ControlFanContext(InteractiveContext):
             'take any responsibility for YOUR actions while using this '
             'software.'
         )
-        return self.__confirm_warning(warning, auto_select=auto_select)
-    
+        return self.confirm_warning(warning, auto_select=auto_select)
 
-    def __handle_test(self, auto_select=None):
+    
+    def __handle_simulate(self, temp_from=0, temp_to=100):
+        '''
+        Simulate requests from the fan with temperatures in the specified
+        range (inclusive).
+        '''
+        self.message()
+        items = []
+
+        for temperature in range(temp_from, temp_to+1, 5):
+            TemperatureSpan.add(temperature, self.fan.simulate(temperature, 100).target_value)
+        for result in TemperatureSpan.get():
+            self.add_summary_value(items, result.get_description(), result.get_value(), validation_func=self.validate_exists)
+        return super().summary(items, title='Simulation results')
+
+
+    def __handle_test(self, auto_select=None, value_offset=20):
         '''
         Perform fan behavior testing, used to test how a fan responds to 
         various PWM-values.
@@ -170,14 +197,21 @@ class ControlFanContext(InteractiveContext):
             'quite possibly leaving you with insufficient cooling. Do NOT '
             'continue unless you know what this means for your system.'
         ).format(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))
-        if not self.__confirm_warning(warning, auto_select=auto_select):
+        if not self.confirm_warning(warning, auto_select=auto_select):
             return False
         try:
             local_enable = self.__read_enable()
             local_value = self.__read_value()
 
-            self.__perform_testing()
-            self.message()
+            device_min, device_max, device_start, device_stop = self.__perform_testing(self.fan.PWM_MIN, self.fan.PWM_MAX)
+            device_start = self.__offset_value(device_start, value_offset, self.fan.PWM_MIN, self.fan.PWM_MAX)
+            device_stop = self.__offset_value(device_stop, value_offset, self.fan.PWM_MIN, self.fan.PWM_MAX)
+            if self.confirm_dialog('Keep fan running?', include_cancel=False, auto_select=auto_select):
+                device_min = device_stop
+            self.__test_summary(device_min, device_max, device_start, device_stop)
+
+            if self.confirm_dialog('Write to configuration?', include_cancel=False, auto_select=auto_select):
+                self.__write_configuration(device_min, device_max, device_start, device_stop)
             return True
         except TestAbortedException as e:
             self.error('Tests aborted: {}'.format(e.message), end='\n\n')
@@ -187,7 +221,29 @@ class ControlFanContext(InteractiveContext):
         return False
 
 
-    def __perform_testing(self):
+    def __test_summary(self, device_min, device_max, device_start, device_stop):
+        items = []
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.DEVICE_MIN, device_min, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.DEVICE_MAX, device_max, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.DEVICE_START, device_start, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.SUBKEY_CHILD + self.DEVICE_STOP, device_stop, format_func=utils.format_pwm, validation_func=self.validate_exists)
+        return super().summary(items, title='Test summary')
+
+
+    def __write_configuration(self, device_min, device_max, device_start, device_stop):
+        self.fan.pwm_min = device_min
+        self.fan.pwm_max = device_max
+        self.fan.pwm_start = device_start
+        self.fan.pwm_stop = device_stop
+
+        self.fan_config.settings.set(self.fan.name, 'pwm_min', device_min)
+        self.fan_config.settings.set(self.fan.name, 'pwm_max', device_max)
+        self.fan_config.settings.set(self.fan.name, 'pwm_start', device_start)
+        self.fan_config.settings.set(self.fan.name, 'pwm_stop', device_stop)
+
+
+    def __perform_testing(self, device_min, device_max, step_size=10):
+        device_start = None
         device_stop = None
 
         with TestContextManager(self, 'Testing ' + self.fan.get_title(), inline=False) as parent_context:
@@ -213,7 +269,7 @@ class ControlFanContext(InteractiveContext):
                     raise TestAbortedException('fan never stopped - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
 
             with TestContextManager(self, 'Find ' + self.DEVICE_STOP, parent_context=parent_context) as test_context:
-                for value in range(self.fan.PWM_MAX, self.fan.PWM_MIN, -10):
+                for value in PWMIterator(self.fan.PWM_MIN, self.fan.PWM_MAX, -step_size):
                     test_context.debug(value)
                     self.__write_value(value)
                     try:
@@ -223,9 +279,32 @@ class ControlFanContext(InteractiveContext):
                             break
                     except SchedulerLimitExceeded:
                         pass
-                raise TestAbortedException('fan never stopped - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
-        
-        self.message('Detected {}: {}'.format(self.DEVICE_STOP, utils.format_pwm(device_stop)))
+                if device_stop is None:
+                    raise TestAbortedException('fan never stopped - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
+
+            with TestContextManager(self, 'Stopping fan', parent_context=parent_context) as test_context:
+                self.__write_value(self.fan.PWM_MIN)
+                try:
+                    self.__wait_period(limit=20, check_completed_func=self.__check_stopped)
+                except SchedulerLimitExceeded:
+                    raise TestAbortedException('fan never stopped - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
+
+            with TestContextManager(self, 'Find ' + self.DEVICE_START, parent_context=parent_context) as test_context:
+                start_at = self.fan.PWM_MIN if device_stop is None else device_stop
+                for value in PWMIterator(start_at, self.fan.PWM_MAX, step_size):
+                    test_context.debug(value)
+                    self.__write_value(value)
+                    try:
+                        if self.__wait_period(step_delay=0.2, limit=5, check_completed_func=self.__check_started):
+                            device_start = value
+                            test_context.set_status(device_start)
+                            break
+                    except SchedulerLimitExceeded:
+                        pass
+                if device_start is None:
+                    raise TestAbortedException('fan never started - maybe {} doesn\'t actually control {}?'.format(self.fan.device.get_title(), self.fan.pwm_input.get_title()))
+        self.message()
+        return device_min, device_max, device_start, device_stop
 
 
     def __wait_period(self, step_delay=1, limit=None, check_completed_func=None, notify_status=None, status_format_func=None):
@@ -270,15 +349,13 @@ class ControlFanContext(InteractiveContext):
         return self.__read_rpm()
 
 
-    def __confirm_warning(self, warning, auto_select=None):
-        'Displays warning message then prompts the user to pick an option'
-        self.message(warning, Logger.WARNING, end='\n\n')
-        self.message('Do you want to continue?', InteractiveLogger.DIRECT_HIGHLIGHT)
-        if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM, auto_select=auto_select) == 'y':
-            self.message()
-            return True
-        self.message()
-        return False
+    def __offset_value(self, value, offset, min, max):
+        value = value + offset
+        if value < min:
+            return min
+        if value > max:
+            return max
+        return value
 
 
     def __ensure_managed(self):
@@ -294,7 +371,7 @@ class ControlFanContext(InteractiveContext):
             'needs to set to {}.'
         ).format(self.fan.device.format_enable(PWMSensor.PWM_ENABLE_MANUAL))
 
-        if self.__confirm_warning(warning):
+        if self.confirm_warning(warning):
             self.__handle_set_enable(PWMSensor.PWM_ENABLE_MANUAL)
             return True
         return False
@@ -353,7 +430,7 @@ class ControlFanContext(InteractiveContext):
 
 
 class TestContextManager:
-    def __init__(self, context, message, styling=Logger.DEBUG, status_ok='OK', status_fail='FAILED', inline=True, parent_context=None):
+    def __init__(self, context, message, styling=InteractiveLogger.DIRECT_REGULAR, status_ok='OK', status_fail='FAILED', inline=True, parent_context=None):
         self.context = context
         self.message = message
         self.styling = styling
@@ -410,10 +487,51 @@ class TestContextManager:
             self.context.message('{}{}'.format(prefix, self.get_result(self.status_ok)), styling=self.styling)
         else:
             self.context.message('{}{}'.format(prefix, self.get_result(self.status_fail)), styling=self.styling)
-        return False    
+        return False
 
 
 class TestAbortedException(ControlRuntimeError):
     '''
     Used during fan behavior testing.
     '''
+
+
+class TemperatureSpan:
+    instances = []
+    empty = True
+
+
+    def __init__(self, start_at, value):
+        self.start_at = start_at
+        self.stop_at = start_at
+        self.value = value
+
+
+    def get_description(self):
+        result = 'At {}'.format(utils.format_celsius(self.start_at))
+        if self.stop_at != self.start_at:
+            result += ' until {}'.format(utils.format_celsius(self.stop_at))
+        return result
+
+
+    def get_value(self):
+        return utils.format_pwm(self.value)
+
+
+    @classmethod
+    def get(cls):
+        return cls.instances
+
+
+    @classmethod
+    def add(cls, temperature, value, fill_gaps=True):
+        if cls.empty:
+            cls.instances.append(cls(start_at=temperature, value=value))
+            cls.empty = False
+        last = cls.instances[-1]
+        if last.value == value:
+            last.stop_at = temperature
+        else:
+            if fill_gaps and last.stop_at < (temperature - 1):
+                last.stop_at = temperature - 1
+            cls.instances.append(cls(start_at=temperature, value=value))

@@ -4,7 +4,15 @@ class PWMRequest:
         self.target_value = target_value
         self.start_value = start_value
 
+
+    def __str__(self):
+        return '{}({})'.format(
+            self.__class__.__name__,
+            'start_value={}, target_value={}'.format(str(self.start_value), str(self.target_value))
+        )
     
+
+    @staticmethod
     def get_max_target(requests):
         max_start, max_target = PWMRequest.get_max(requests)
         if max_target is not None:
@@ -12,6 +20,7 @@ class PWMRequest:
         return None
 
 
+    @staticmethod
     def get_max_start(requests):
         max_start, max_target = PWMRequest.get_max(requests)
         if max_start is not None:
@@ -19,6 +28,7 @@ class PWMRequest:
         return None
 
 
+    @staticmethod
     def get_max_value(max_start, max_target, default):
         return max([
             x for x in [
@@ -31,6 +41,7 @@ class PWMRequest:
         )
 
 
+    @staticmethod
     def get_max(requests):
         '''
         Get the maximum requests for the starting condition as well as the
@@ -46,10 +57,3 @@ class PWMRequest:
             if req_target is None or request.target_value > req_target.target_value:
                 req_target = request
         return req_start, req_target
-
-
-    def __str__(self):
-        return '{}({})'.format(
-            self.__class__.__name__,
-            'start_value={}, target_value={}'.format(str(self.start_value), str(self.target_value))
-        )

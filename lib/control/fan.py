@@ -53,21 +53,31 @@ class Fan(LoggerMixin):
         self.device.request_value(self.__calculate())
 
 
-    def __calculate(self):
+    def simulate(self, temperature, fan_speed):
+        '''
+        Used to simulate fan settings corresponding to set input values.
+        '''
+        return self.__calculate(temperature, fan_speed)
+
+
+    def __calculate(self, temperature=None, fan_speed=None):
         '''
         Calculate the pwm_value to request from output. The rationale is that
         unless we hit the lower and upper bounds, then we're mapping from
         temperatures to actual PWM-values.
         '''
-        temp = self.sensor.get_value()
+        if temperature is None:
+            temperature = self.sensor.get_value()
+        if fan_speed is None:
+            fan_speed = self.pwm_input.get_value()
 
         pwm_value = self.pwm_min
-        if temp <= self.sensor_min:
+        if temperature <= self.sensor_min:
             pwm_value = self.pwm_min
-        elif temp >= self.sensor_max:
+        elif temperature >= self.sensor_max:
             pwm_value = self.pwm_max
         else:
-            pwm_value = round((temp - self.sensor_min) * 
+            pwm_value = round((temperature - self.sensor_min) * 
                               (self.pwm_max - self.pwm_min) /
                               (self.sensor_max - self.sensor_min) +
                               self.pwm_min)
@@ -75,7 +85,7 @@ class Fan(LoggerMixin):
         # Check if the fan appears to have stopped. Ideally the above
         # calculation should keep the PWM-value above the level at which
         # the fan would physically seize.
-        if pwm_value > self.pwm_stop and self.pwm_input.get_value() == 0:
+        if pwm_value > self.pwm_stop and fan_speed == 0:
             self.log_verbose('{} appears to have stopped!'.format(self))
             return PWMRequest(self, target_value=pwm_value, start_value=self.pwm_start)
         return PWMRequest(self, target_value=pwm_value)

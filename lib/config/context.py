@@ -53,7 +53,7 @@ class InteractiveContext(Context):
     STOP = 'Stop'
     MINIMUM = 'Minimum'
     MIN = 'Min'
-    MAXIMUM = 'Minimum'
+    MAXIMUM = 'Maximum'
     MAX = 'Max'
 
     NAME = 'Name'
@@ -96,17 +96,40 @@ class InteractiveContext(Context):
         context from this point on.
         '''
         return self.parent
-    
 
-    def message(self, message='', styling=InteractiveLogger.DIRECT_REGULAR, end='\n', flow_text=False):
-        self.console.log_direct(message, styling=styling, end=end, flow_text=flow_text)
+
+    def confirm_warning(self, warning, auto_select=None, include_cancel=True):
+        'Displays warning dialog'
+        return self.confirm_dialog('Do you want to continue?', auto_select=auto_select, styling=Logger.WARNING, explain_msg=warning, include_cancel=include_cancel)
+
+
+    def confirm_dialog(self, message, auto_select=None, styling=Logger.INFO, explain_msg=None, include_cancel=True):
+        '''
+        Displays a confirmation dialog. Optionally a longer explenation can be
+        shown before the dialog itself. 
+        '''
+        if explain_msg:
+            self.message(explain_msg, styling=styling, end='\n\n')
+        else:
+            self.message()
+        
+        self.message(message, InteractiveLogger.DIRECT_HIGHLIGHT)
+        if self.console.prompt_choices(ConfirmPromptBuilder(self.console, include_cancel=include_cancel), prompt=self.CONFIRM, auto_select=auto_select) == 'y':
+            self.message()
+            return True
+        self.message()
+        return False
 
 
     def error(self, message, styling=Logger.ERROR, end='\n', flow_text=False):
         self.message(message, styling=styling, end=end, flow_text=flow_text)
 
 
-    def summary(self, items=None, sep=': ', prefix=SUBKEY_INDENT):
+    def message(self, message='', styling=InteractiveLogger.DIRECT_REGULAR, end='\n', flow_text=False):
+        self.console.log_direct(message, styling=styling, end=end, flow_text=flow_text)
+
+
+    def summary(self, items=None, sep=': ', prefix=SUBKEY_INDENT, title='Summary'):
         '''
         Used near the start of a context interaction to summarise common values
         used in this section. List should have the structure of (key, value)
@@ -115,7 +138,7 @@ class InteractiveContext(Context):
         '''
         if not items:
             return
-        self.message('Summary:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
+        self.message('{}:'.format(title), styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         key_pad = len(max([key for key, value, *params in items], key=len)) + len(sep)
         value_pad = len(max([value for key, value, *params in items], key=len)) + len(sep)
         value_pad = utils.pad_number(value_pad)
