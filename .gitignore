@@ -6,4 +6,4 @@ resources/
 *.tmp
 *.pyc
 *.pid
-hwmon_*
+hwmon_print.py
