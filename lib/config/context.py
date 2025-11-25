@@ -1,7 +1,8 @@
 import os, traceback
 from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder, PromptValidationException
 from ..control import BaseControl, Fan
-from ..hwmon_info import HwmonInfo
+from ..hwmon import HwmonProvider
+from ..hwmon.hwmon_info import HwmonInfo
 from ..logger import PromptBuilder
 from .. import utils
 
@@ -310,14 +311,7 @@ class InteractiveContext(Context):
         list of HwmonInfo instances. An optional validation method can be
         supplied in order to make decisions on which entries to include.
         '''
-        hwmon_list = []
-        for dirpath, dirnames, filenames in os.walk(BaseControl.BASE_PATH):
-            dirnames.sort()
-            for dir in dirnames:
-                hwmon_entry = HwmonInfo(dir, os.path.join(BaseControl.BASE_PATH, dir))
-                if validation_func is None or validation_func(hwmon_entry):
-                    hwmon_list.append(hwmon_entry)
-            return hwmon_list
+        return HwmonProvider.load_instances(validation_func)
 
 
     def hwmon_list(self, hwmon_list, current):
@@ -424,7 +418,6 @@ class InteractiveContext(Context):
         '''
         if value is None:
             return ''
-        get_title = getattr(value, 'get_title', None)
         if hasattr(value, 'get_title'):
             return value.get_title(include_summary=extended)
         return str(value)

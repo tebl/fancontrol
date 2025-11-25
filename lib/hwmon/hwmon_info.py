@@ -1,54 +1,9 @@
 import os
-from abc import ABC, ABCMeta, abstractmethod
-from .exceptions import ControlRuntimeError
-from .utils import format_pwm, format_rpm, format_celsius
-from .control import BaseControl
-
-
-class HwmonProvider(ABC):
-    def __init__(self, name):
-        self.name = name
-        self.devices = []
-        self.sensors = []
-        self.pwm_inputs = []
-
-
-    @abstractmethod
-    def get_dev_name(self):
-        ...
-
-
-    def get_title(self, include_summary=False):
-        if not include_summary:
-            return self.name
-        return '{} (driver={}, devices={}, sensors={}, pwm_inputs={})'.format(
-            self.name, 
-            self.get_dev_name(),
-            len(self.devices),
-            len(self.sensors),
-            len(self.pwm_inputs)
-        )
-
-
-    @abstractmethod
-    def load_keys(self):
-        ...
-
-
-    def matches(self, name):
-        return self.name == name
-
-
-    @abstractmethod
-    def register(self, hwmon_object):
-        ...
-
-
-    @classmethod
-    def load_instances(cls, validation_func=None):
-        results = []
-        results += HwmonInfo.load_instances(validation_func)
-        return results
+from ..exceptions import ControlRuntimeError
+from ..utils import format_pwm, format_rpm, format_celsius
+from ..control import BaseControl
+from .hwmon_provider import HwmonProvider
+from .hwmon_object import HwmonObject
 
 
 class HwmonInfo(HwmonProvider):
@@ -62,17 +17,15 @@ class HwmonInfo(HwmonProvider):
 
 
     def load_keys(self):
-        self.devices = []
-        self.sensors = []
-        self.pwm_inputs = []
+        self.clear_entries()
         for dirpath, dirnames, filenames in os.walk(self.base_path):
             filenames.sort()
             for file in filenames:
-                HwmonObject.try_importing(self, file, self.base_path)
+                HwmonFile.try_importing(self, file, self.base_path)
             break
 
 
-    def get_dev_name(self):
+    def get_driver_name(self):
         file_path = os.path.join(self.base_path, 'name')
         try:
             with open(file_path, 'r') as file:
@@ -90,13 +43,11 @@ class HwmonInfo(HwmonProvider):
         return device_path[len(prefix):]
 
 
-    def register(self, hwmon_object):
-        if type(hwmon_object) is HwmonPWM:
-            self.devices.append(hwmon_object)
-        if type(hwmon_object) is HwmonTemp:
-            self.sensors.append(hwmon_object)
-        if type(hwmon_object) is HwmonFan:
-            self.pwm_inputs.append(hwmon_object)
+    def get_path(self):
+        return os.path.join(
+            self.BASE_PATH, 
+            self.name
+        )
 
 
     def suggest_key(self):
@@ -109,10 +60,6 @@ class HwmonInfo(HwmonProvider):
             return self.name[-1:]
         return 'a'
 
-
-    def __str__(self):
-        return self.get_title()
-    
 
     @staticmethod
     def get_hwmon_from_value(value, dev_base):
@@ -136,18 +83,9 @@ class HwmonInfo(HwmonProvider):
         return value
 
 
-    @staticmethod
-    def read_contents(file_path, strip_contents=True, convert_func=None):
-        try:
-            with open(file_path, 'r') as file:
-                data = file.read()
-                if strip_contents:
-                    data = data.strip()
-                if convert_func is not None:
-                    data = convert_func(data)
-                return data
-        except (FileNotFoundError, ValueError) as e:
-            raise ControlRuntimeError(str(e))
+    @classmethod
+    def is_supported(cls):
+        return os.path.isdir(cls.BASE_PATH)
 
 
     @classmethod
@@ -164,12 +102,26 @@ class HwmonInfo(HwmonProvider):
                 hwmon_entry = cls(dir, os.path.join(cls.BASE_PATH, dir))
                 if validation_func is None or validation_func(hwmon_entry):
                     hwmon_list.append(hwmon_entry)
-            return hwmon_list
+        return hwmon_list
+    
+
+    @staticmethod
+    def read_contents(file_path, strip_contents=True, convert_func=None):
+        try:
+            with open(file_path, 'r') as file:
+                data = file.read()
+                if strip_contents:
+                    data = data.strip()
+                if convert_func is not None:
+                    data = convert_func(data)
+                return data
+        except (FileNotFoundError, ValueError) as e:
+            raise ControlRuntimeError(str(e))
 
 
-class HwmonObject:
-    def __init__(self, hwmon_info, name, base_path, input):
-        self.hwmon_info = hwmon_info
+class HwmonFile(HwmonObject):
+    def __init__(self, hwmon_provider, name, base_path, input):
+        self.hwmon_provider = hwmon_provider
         self.name = name
         self.base_path = base_path
         self.input = input
@@ -186,7 +138,7 @@ class HwmonObject:
         retrieved the input from. Note that dev_base is a partial name such
         as 'hwmon4', and will most likely not be a complete path.
         '''
-        if self.hwmon_info.matches(dev_base):
+        if self.hwmon_provider.matches(dev_base):
             return self.input
         return os.path.join(self.base_path, self.input)
 
@@ -211,7 +163,7 @@ class HwmonObject:
 
 
     def matches(self, hwmon_name, name):
-        if not self.hwmon_info.matches(hwmon_name):
+        if not self.hwmon_provider.matches(hwmon_name):
             return False
         return self.input == name
     
@@ -271,7 +223,7 @@ class HwmonObject:
                 break
 
 
-class HwmonTemp(HwmonObject):
+class HwmonTemp(HwmonFile):
     PREFIX = 'temp'
     SUFFIX = '_input'
 
@@ -285,11 +237,10 @@ class HwmonTemp(HwmonObject):
     def try_importing(hwmon_instance, file, base_path):
         if file.startswith(__class__.PREFIX) and file.endswith(__class__.SUFFIX):
             o = __class__(hwmon_instance, file[:-len(__class__.SUFFIX)], base_path, file)
-            if o.is_valid():
-                hwmon_instance.register(o)
+            hwmon_instance.register_sensor(o)
 
 
-class HwmonFan(HwmonObject):
+class HwmonFan(HwmonFile):
     PREFIX = 'fan'
     SUFFIX = '_input'
 
@@ -302,11 +253,10 @@ class HwmonFan(HwmonObject):
     def try_importing(hwmon_instance, file, base_path):
         if file.startswith(__class__.PREFIX) and file.endswith(__class__.SUFFIX):
             o = __class__(hwmon_instance, file[:-len(__class__.SUFFIX)], base_path, file)
-            if o.is_valid():
-                hwmon_instance.register(o)
+            hwmon_instance.register_pwm_input(o)
 
 
-class HwmonPWM(HwmonObject):
+class HwmonPWM(HwmonFile):
     PREFIX = 'pwm'
     SUFFIX = '_enable'
 
@@ -323,5 +273,4 @@ class HwmonPWM(HwmonObject):
     def try_importing(hwmon_instance, file, base_path):
         if file.startswith(__class__.PREFIX) and file.endswith(__class__.SUFFIX):
             o = __class__(hwmon_instance, file[:-len(__class__.SUFFIX)], base_path, file[:-len(__class__.SUFFIX)])
-            if o.is_valid():
-                hwmon_instance.register(o)
+            hwmon_instance.register_device(o)

@@ -1,6 +1,6 @@
 from ..logger import Logger, InteractiveLogger, PromptBuilder
 from .context import InteractiveContext
-from .control_fan import ControlFanContext
+from .fan_control import ControlFanContext
 
 
 class MainCompleteContext(InteractiveContext):

@@ -4,7 +4,8 @@ from .logging import LoggingContext
 from .hwmon import HWMONContext
 from .main_loaded import MainLoadedContext
 from .section import SectionContext
-from .control_fan import ControlFanContext
+from .main_complete import MainCompleteContext
+from .fan_control import ControlFanContext
 
 # Context structure:
 #
@@ -14,4 +15,4 @@ from .control_fan import ControlFanContext
 #   - main_loaded
 #     - section
 #     - main_complete
-#       - control_fan
+#       - fan_control

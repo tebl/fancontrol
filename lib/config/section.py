@@ -1,8 +1,7 @@
 import os
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder, PromptValidationException
 from ..exceptions import ControlRuntimeError
-from ..hwmon_info import HwmonInfo
-from ..control import BaseControl
+from ..hwmon.hwmon_info import HwmonInfo
 from .. import utils
 from .context import InteractiveContext
 
