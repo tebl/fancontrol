@@ -312,7 +312,7 @@ class InteractiveContext(Context):
         list of HwmonInfo instances. An optional validation method can be
         supplied in order to make decisions on which entries to include.
         '''
-        return HwmonProvider.load_instances(validation_func)
+        return HwmonProvider.filter_instances(validation_func)
 
 
     def hwmon_list(self, hwmon_list, current):

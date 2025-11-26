@@ -4,6 +4,12 @@ from .hwmon_object import HwmonObject
 
 
 class HwmonProvider(ABC):
+    instances = []
+    instances_loaded = False
+    logger = None
+    settings = None
+    
+
     def __init__(self, name):
         self.name = name
         self.clear_entries()
@@ -47,7 +53,7 @@ class HwmonProvider(ABC):
 
 
     @abstractmethod
-    def load_keys(self):
+    def load_entries(self):
         '''
         Load objects associated with the entry. While this is explicitly called
         during instantiation it's conceivable that we at some point need to
@@ -101,6 +107,10 @@ class HwmonProvider(ABC):
     @classmethod
     @abstractmethod
     def is_supported(cls):
+        '''
+        Determine if the the provider is supported on this system, should
+        return False if some dependecy is missing.
+        '''
         ...
 
 
@@ -119,7 +129,6 @@ class HwmonProvider(ABC):
             result = provider_type.try_parsing_value(value, dev_base)
             if result is not None:
                 return result
-        print('parse_value fail for', value, dev_base)
         return None
 
 
@@ -144,12 +153,77 @@ class HwmonProvider(ABC):
     
 
     @classmethod
-    def load_instances(cls, validation_func=None):
-        results = []
+    def configure(cls, settings, logger):
+        cls.settings = settings
+        cls.logger = logger
+
+
+    @classmethod
+    def load(cls):
+        '''
+        Load provider instances using supported sub-systems, as determined by the
+        implementation itself. Settings and logger provided by the system in case
+        I ever need them.
+        '''
+        cls.instances.clear()
         for provider_type in cls.__subclasses__():
             if provider_type.is_supported():
-                results += provider_type.load_instances(validation_func)
+                cls.instances += provider_type.load_provider()
+        cls.instances_loaded = True
+        return cls.instances_loaded
+
+
+    @classmethod
+    @abstractmethod
+    def filter_instances(cls, filter_func=None):
+        '''
+        Filter loaded instances, either getting all of them or by providing a
+        filter function you can choose to evaluate them one by one. Note that
+        while this implementation is tagged as @abstractmethod, this is to
+        enforce the inclusion of an implementation in child-classes - the
+        implementation of which would usually include a call to
+        get_provider_filter.
+        '''
+        if not cls.instances_loaded:
+            cls.load()
+        results = []
+        for provider_instance in cls.instances:
+            if filter_func is None or filter_func(provider_instance):
+                results.append(provider_instance)
         return results
+
+
+    @classmethod
+    def get_provider_filter(cls, orig_filter_func=None):
+        '''
+        Intended to be called from a child class in order to create a filter
+        function that will both constrain the class type as well as use the
+        provided caller-defined function. If called from the parent we just
+        return whatever is provided to it.
+
+        This enables us to do things such as HwmonNvidia.filter_instances()
+        to get only instances of HwmonNvidia while
+        HwmonProvider.filter_instances() would return instances regardless of
+        implementation.
+        '''
+        if cls is HwmonProvider:
+            return orig_filter_func
+        def filter_subtype(hwmon_provider):
+            if type(hwmon_provider) is cls:
+                if orig_filter_func is None:
+                    return True
+                return orig_filter_func(hwmon_provider)
+            return False
+        return filter_subtype
+
+
+    @classmethod
+    @abstractmethod
+    def load_provider(cls):
+        '''
+        Load instances from a specific provider.
+        '''
+        ...
 
 
     @classmethod

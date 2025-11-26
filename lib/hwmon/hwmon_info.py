@@ -14,10 +14,10 @@ class HwmonInfo(HwmonProvider):
     def __init__(self, name, base_path):
         super().__init__(name)
         self.base_path = base_path
-        self.load_keys()
+        self.load_entries()
 
 
-    def load_keys(self):
+    def load_entries(self):
         self.clear_entries()
         for dirpath, dirnames, filenames in os.walk(self.base_path):
             filenames.sort()
@@ -60,6 +60,11 @@ class HwmonInfo(HwmonProvider):
         if self.name[:-1] == 'hwmon':
             return self.name[-1:]
         return 'a'
+    
+
+    @classmethod
+    def filter_instances(cls, filter_func=None):
+        return super().filter_instances(filter_func=cls.get_provider_filter(filter_func))
 
 
     @staticmethod
@@ -90,20 +95,20 @@ class HwmonInfo(HwmonProvider):
 
 
     @classmethod
-    def load_instances(cls, validation_func=None):
+    def load_provider(cls):
         '''
         Index sysfs for registered hwmon-entries, results are returned as a
         list of HwmonInfo instances. An optional validation method can be
         supplied in order to make decisions on which entries to include.
         '''
-        hwmon_list = []
+        instances = []
         for dirpath, dirnames, filenames in os.walk(cls.BASE_PATH):
             dirnames.sort()
             for dir in dirnames:
                 hwmon_entry = cls(dir, os.path.join(cls.BASE_PATH, dir))
-                if validation_func is None or validation_func(hwmon_entry):
-                    hwmon_list.append(hwmon_entry)
-        return hwmon_list
+                # if validation_func is None or validation_func(hwmon_entry):
+                instances.append(hwmon_entry)
+        return instances
     
 
     @staticmethod

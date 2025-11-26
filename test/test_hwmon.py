@@ -19,7 +19,7 @@ class TestHwmon(unittest.TestCase):
 
 
     def test_hwmon(self):
-        providers = HwmonProvider.load_instances()
+        providers = HwmonProvider.filter_instances()
         self.assertIsInstance(providers, list)
         for provider in providers:
             self.assertIsInstance(provider.get_title(include_summary=True), str)
@@ -76,23 +76,25 @@ class TestHwmon(unittest.TestCase):
     def test_hwmon_validation(self):
         # Get all of them. Note that the entire set of tests will be disabled
         # we don't have any hwmon-entries, so we should have at least one.
-        providers = HwmonInfo.load_instances()
+        providers = HwmonInfo.filter_instances()
+        self.assertIsInstance(providers[0], HwmonInfo)
         validation_hwmon_name = providers[0].name
 
-        def validation_func(entry):
+        def filter_func(entry):
             return entry.matches(validation_hwmon_name)
 
-        filtered = HwmonInfo.load_instances(validation_func=validation_func)
+        filtered = HwmonInfo.filter_instances(filter_func=filter_func)
         self.assertEqual(len(filtered), 1)
+        self.assertIsInstance(filtered[0], HwmonInfo)
         self.assertEqual(filtered[0].name, validation_hwmon_name)
     
 
     def test_hwmon_nvidia(self):
-        providers = HwmonNvidia.load_instances()
+        providers = HwmonNvidia.filter_instances()
         self.assertIsInstance(providers, list)
         for provider in providers:
+            self.assertIsInstance(provider, HwmonNvidia)
             self.assertIsInstance(provider.get_title(include_summary=True), str)
 
             for sensor in provider.sensors:
-                print(sensor.get_title(include_summary=True, include_value=True))
                 self.assertIsInstance(sensor.get_title(include_summary=True, include_value=True), str)

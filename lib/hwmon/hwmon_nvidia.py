@@ -16,7 +16,7 @@ class HwmonNvidia(HwmonProvider):
         super().__init__(name)
         self.gpu_id = gpu_id
         self.gpu_description = gpu_description
-        self.load_keys()
+        self.load_entries()
 
 
     def get_driver_name(self):
@@ -30,7 +30,7 @@ class HwmonNvidia(HwmonProvider):
         )
 
 
-    def load_keys(self):
+    def load_entries(self):
         self.clear_entries()
         self.register_sensor(NvidiaTemp(self, 'temp0'))
         self.register_pwm_input(NvidiaFan(self, 'fan0'))
@@ -46,12 +46,17 @@ class HwmonNvidia(HwmonProvider):
 
 
     @classmethod
+    def filter_instances(cls, filter_func=None):
+        return super().filter_instances(filter_func=cls.get_provider_filter(filter_func))
+
+
+    @classmethod
     def is_supported(cls):
         return os.path.isfile(cls.NVIDIA_SMI)
 
 
     @classmethod
-    def load_instances(cls, validation_func=None):
+    def load_provider(cls):
         '''
         Load instances by parsing the output from 'nvidia-smi -L', on my system
         this gives the following output:
@@ -61,7 +66,7 @@ class HwmonNvidia(HwmonProvider):
         passed as gpu_id. Description is set to "NVIDIA GeForce RTX 3050".
         '''
         prefix = 'GPU '
-        hwmon_list = []
+        instances = []
         try:
             output = cls.run_command('-L')
             for line in output.split('\n'):
@@ -76,11 +81,10 @@ class HwmonNvidia(HwmonProvider):
 
                 name = '{}{}'.format(cls.PREFIX, gpu_id)
                 hwmon_entry = cls(name, gpu_id, gpu_description)
-                if validation_func is None or validation_func(hwmon_entry):
-                    hwmon_list.append(hwmon_entry)
+                instances.append(hwmon_entry)
         except ValueError as e:
             raise SensorException('Command parsing error: ' + str(e))
-        return hwmon_list
+        return instances
 
 
     @classmethod
