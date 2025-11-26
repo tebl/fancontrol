@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 
 
 class HwmonObject(ABC):
+    PREFIX = None
+
+
     def __init__(self, hwmon_provider, name):
         self.hwmon_provider = hwmon_provider
         self.name = name
@@ -27,10 +30,10 @@ class HwmonObject(ABC):
         ...
 
 
-    def matches(self, hwmon_name, name):
+    def matches(self, hwmon_name, hwmon_entry):
         if not self.hwmon_provider.matches(hwmon_name):
             return False
-        return self.input == name
+        return self.input == hwmon_entry
 
 
     @abstractmethod
@@ -38,11 +41,20 @@ class HwmonObject(ABC):
         ...
 
 
-    @abstractmethod
     def suggest_key(self):
         '''
         Suggest configuration key for use with PromptBuilder, this should used
         as a value for start_at as we can't guarantee that a key isn't already
         used.
         '''
-        ...
+        prefix = self.__class__.PREFIX
+        if prefix is not None and self.name.startswith(prefix):
+            number = self.name[len(prefix):]
+            try:
+                number = int(number)
+                if number <= 9:
+                    return str(number)
+                return 'a'
+            except ValueError:
+                pass
+        return None

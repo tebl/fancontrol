@@ -8,6 +8,7 @@ from .hwmon_object import HwmonObject
 
 class HwmonInfo(HwmonProvider):
     BASE_PATH = '/sys/class/hwmon'
+    PREFIX = 'hwmon'
 
 
     def __init__(self, name, base_path):
@@ -119,6 +120,48 @@ class HwmonInfo(HwmonProvider):
             raise ControlRuntimeError(str(e))
 
 
+    @classmethod
+    def try_parsing_hwmon(cls, value, dev_base):
+        '''
+        Parse hwnon path, passed either as a full path or as a relative path
+        assumed to be located within dev_base.
+        '''
+        if not dev_base.startswith(cls.BASE_PATH):
+            dev_base = os.path.join(cls.BASE_PATH, dev_base)
+        if value.startswith(cls.BASE_PATH):
+            return value
+        print('failed for:', value)
+        return None
+
+
+    @classmethod
+    def try_parsing_value(cls, value, dev_base):
+        '''
+        Parse hwnon entry paths, passed either as a full path or as a relative
+        assumed to be located within dev_base.
+        '''
+        if not dev_base.startswith(cls.BASE_PATH):
+            dev_base = os.path.join(cls.BASE_PATH, dev_base)
+
+        if value.startswith(cls.BASE_PATH):
+            # Value is full path to a file
+            parts = value.split(os.path.sep)
+            return parts[-2], parts[-1]
+        elif dev_base.startswith(cls.BASE_PATH):
+            if not value.startswith(os.path.sep):
+                # Value is relative to dev_base
+                parts = dev_base.split(os.path.sep)
+                return parts[-1], value
+        return None
+
+
+    @classmethod
+    def value_exists_for(cls, hwmon_name, hwmon_entry):
+        if cls.is_supported() and hwmon_name.startswith(cls.PREFIX):
+            return HwmonFile.value_exists_for(cls, hwmon_name, hwmon_entry)
+        return None
+
+
 class HwmonFile(HwmonObject):
     def __init__(self, hwmon_provider, name, base_path, input):
         self.hwmon_provider = hwmon_provider
@@ -186,20 +229,6 @@ class HwmonFile(HwmonObject):
         )
     
 
-    def suggest_key(self):
-        prefix = self.__class__.PREFIX
-        if self.name.startswith(prefix):
-            number = self.name[len(prefix):]
-            try:
-                number = int(number)
-                if number <= 9:
-                    return str(number)
-                return 'a'
-            except ValueError:
-                pass
-        return None
-
-
     def has_suffix_key(self, suffix=''):
         file_path = self.__get_path(suffix)
         return os.path.isfile(file_path)
@@ -216,12 +245,18 @@ class HwmonFile(HwmonObject):
         return self.get_title(include_summary=True)
 
 
-    @staticmethod
-    def try_importing(hwmon_instance, file, base_path):
-        for hwmon_class in [HwmonFan, HwmonPWM, HwmonTemp]:
+    @classmethod
+    def try_importing(cls, hwmon_instance, file, base_path):
+        for hwmon_class in cls.__subclasses__():
             if hwmon_class.try_importing(hwmon_instance, file, base_path):
                 break
 
+
+    @classmethod
+    def value_exists_for(cls, base_class, hwmon_name, hwmon_entry):
+        path = os.path.join(base_class.BASE_PATH, hwmon_name, hwmon_entry)
+        return os.path.isfile(path)
+                   
 
 class HwmonTemp(HwmonFile):
     PREFIX = 'temp'
@@ -233,10 +268,10 @@ class HwmonTemp(HwmonFile):
         return format_celsius(value)
 
 
-    @staticmethod
-    def try_importing(hwmon_instance, file, base_path):
-        if file.startswith(__class__.PREFIX) and file.endswith(__class__.SUFFIX):
-            o = __class__(hwmon_instance, file[:-len(__class__.SUFFIX)], base_path, file)
+    @classmethod
+    def try_importing(cls, hwmon_instance, file, base_path):
+        if file.startswith(cls.PREFIX) and file.endswith(cls.SUFFIX):
+            o = cls(hwmon_instance, file[:-len(cls.SUFFIX)], base_path, file)
             hwmon_instance.register_sensor(o)
 
 
@@ -249,10 +284,10 @@ class HwmonFan(HwmonFile):
         return format_rpm(int(value))
 
 
-    @staticmethod
-    def try_importing(hwmon_instance, file, base_path):
-        if file.startswith(__class__.PREFIX) and file.endswith(__class__.SUFFIX):
-            o = __class__(hwmon_instance, file[:-len(__class__.SUFFIX)], base_path, file)
+    @classmethod
+    def try_importing(cls, hwmon_instance, file, base_path):
+        if file.startswith(cls.PREFIX) and file.endswith(cls.SUFFIX):
+            o = cls(hwmon_instance, file[:-len(cls.SUFFIX)], base_path, file)
             hwmon_instance.register_pwm_input(o)
 
 
@@ -269,8 +304,8 @@ class HwmonPWM(HwmonFile):
         return self.has_suffix_key() and self.has_suffix_key('_enable')
 
 
-    @staticmethod
-    def try_importing(hwmon_instance, file, base_path):
-        if file.startswith(__class__.PREFIX) and file.endswith(__class__.SUFFIX):
-            o = __class__(hwmon_instance, file[:-len(__class__.SUFFIX)], base_path, file[:-len(__class__.SUFFIX)])
+    @classmethod
+    def try_importing(cls, hwmon_instance, file, base_path):
+        if file.startswith(cls.PREFIX) and file.endswith(cls.SUFFIX):
+            o = cls(hwmon_instance, file[:-len(cls.SUFFIX)], base_path, file[:-len(cls.SUFFIX)])
             hwmon_instance.register_device(o)

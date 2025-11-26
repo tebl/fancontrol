@@ -17,6 +17,10 @@ class HwmonProvider(ABC):
 
     @abstractmethod
     def get_driver_name(self):
+        '''
+        Used by the routines in order to verify that hwmon-entries haven't been
+        renumbered between boots.
+        '''
         ...
 
 
@@ -34,11 +38,21 @@ class HwmonProvider(ABC):
 
     @abstractmethod
     def get_path(self):
+        '''
+        Get base path for driver entries, and while it takes the format of a
+        Posix-compatible path - it just requires that entries without remains
+        unique.
+        '''
         ...
 
 
     @abstractmethod
     def load_keys(self):
+        '''
+        Load objects associated with the entry. While this is explicitly called
+        during instantiation it's conceivable that we at some point need to
+        call it again in order to reload data.
+        '''
         ...
 
 
@@ -91,30 +105,42 @@ class HwmonProvider(ABC):
 
 
     @classmethod
-    def parse_value(cls, value, dev_base):
+    def parse_hwmon(cls, value, dev_base):
         for provider_type in cls.__subclasses__():
-            result = provider_type.try_parsing_value(value, dev_base)
+            result = provider_type.try_parsing_hwmon(value, dev_base)
             if result is not None:
                 return result
         return None
 
 
     @classmethod
+    def parse_value(cls, value, dev_base):
+        for provider_type in cls.__subclasses__():
+            result = provider_type.try_parsing_value(value, dev_base)
+            if result is not None:
+                return result
+        print('parse_value fail for', value, dev_base)
+        return None
+
+
+    @classmethod
+    @abstractmethod
+    def try_parsing_hwmon(cls, value, dev_base):
+        '''
+        Parse hwnon path, passed either as a full path or as a relative path
+        assumed to be located within dev_base.
+        '''
+        ...
+
+
+    @classmethod
+    @abstractmethod
     def try_parsing_value(cls, value, dev_base):
         '''
         Parse hwnon entry paths, passed either as a full path or as a relative
-        assumed to be located within dev_base.
+        path assumed to be located within dev_base.
         '''
-        if value.startswith(cls.BASE_PATH):
-            # Value is full path to a file
-            parts = value.split(os.path.sep)
-            return parts[-2], parts[-1]
-        elif dev_base.startswith(cls.BASE_PATH):
-            if not value.startswith(os.path.sep):
-                # Value is relative to dev_base
-                parts = dev_base.split(os.path.sep)
-                return parts[-1], value
-        return None
+        ...
     
 
     @classmethod
@@ -124,3 +150,23 @@ class HwmonProvider(ABC):
             if provider_type.is_supported():
                 results += provider_type.load_instances(validation_func)
         return results
+
+
+    @classmethod
+    def value_exists(cls, hwmon_name, hwmon_entry):
+        '''
+        Check that information obtained using parse_value actually exists,
+        the implementation of which is left up to the provider instance
+        itself.
+        '''
+        for provider_type in cls.__subclasses__():
+            result = provider_type.value_exists_for(hwmon_name, hwmon_entry)
+            if result is not None:
+                return result
+        return False
+
+
+    @classmethod
+    @abstractmethod
+    def value_exists_for(cls, hwmon_name, hwmon_entry):
+        ...

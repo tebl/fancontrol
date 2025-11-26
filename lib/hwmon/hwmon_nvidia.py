@@ -11,6 +11,7 @@ class HwmonNvidia(HwmonProvider):
     PREFIX = 'nvidia'
 
 
+
     def __init__(self, name, gpu_id, gpu_description):
         super().__init__(name)
         self.gpu_id = gpu_id
@@ -32,6 +33,7 @@ class HwmonNvidia(HwmonProvider):
     def load_keys(self):
         self.clear_entries()
         self.register_sensor(NvidiaTemp(self, 'temp0'))
+        self.register_pwm_input(NvidiaFan(self, 'fan0'))
 
 
     def suggest_key(self):
@@ -92,9 +94,40 @@ class HwmonNvidia(HwmonProvider):
             raise SensorException(str(e))
 
 
+    @classmethod
+    def try_parsing_hwmon(cls, value, dev_base):
+        '''
+        Parse hwnon path, passed either as a full path or as a relative path
+        assumed to be located within dev_base.
+        '''
+        if value.startswith(cls.BASE_PATH):
+            return value
+        return None
+
+
+    @classmethod
+    def try_parsing_value(cls, value, dev_base):
+        '''
+        Parse hwnon entry paths, as it can't be used as a device entry we
+        safely ignore the passed value for dev_base.
+        '''
+        if value.startswith(cls.BASE_PATH):
+            # Value is full path to a file
+            parts = value.split(os.path.sep)
+            return parts[-2], parts[-1]
+        return None
+
+
+    @classmethod
+    def value_exists_for(cls, hwmon_name, hwmon_entry):
+        if hwmon_name.startswith(cls.PREFIX) and cls.is_supported():
+            return hwmon_entry in ['temp0', 'fan0']
+        return None
+
+
 class NvidiaSensor(HwmonObject):
     REFRESH = 1
-    FIELDS = [ 'temperature.gpu' ]
+    FIELDS = [ 'temperature.gpu', 'fan.speed' ]
     last_data = {}
     last_updated = {}
 
@@ -103,22 +136,11 @@ class NvidiaSensor(HwmonObject):
         super().__init__(hwmon_provider, name)
 
 
-    # def get_input(self, dev_base):
-    #     '''
-    #     Get input path if the supplied dev_base does not match the one we
-    #     retrieved the input from. Note that dev_base is a partial name such
-    #     as 'hwmon4', and will most likely not be a complete path.
-    #     '''
-    #     if self.hwmon_provider.matches(dev_base):
-    #         return self.input
-    #     return os.path.join(self.base_path, self.input)
-
-
     def get_input(self, dev_base):
         if self.hwmon_provider.matches(dev_base):
             return self.name
         self.hwmon_provider.gpu_id
-        return os.path.join(HwmonNvidia.BASE_PATH, self.name)
+        return os.path.join(self.hwmon_provider.get_path(), self.name)
 
 
     def get_title(self, include_summary=False, include_value=True):
@@ -132,10 +154,6 @@ class NvidiaSensor(HwmonObject):
     def is_valid(self):
         return True
 
-
-    def suggest_key(self):
-        return '0'
-    
 
     def get_field(self, field):
         data = self.__class__.get_data(self.hwmon_provider.gpu_id)
@@ -173,9 +191,22 @@ class NvidiaSensor(HwmonObject):
 
 
 class NvidiaTemp(NvidiaSensor):
+    PREFIX = 'temp'
+
     def __init__(self, hwmon_provider, name):
         super().__init__(hwmon_provider, name)
 
     
     def read_value(self):
         return self.get_field('temperature.gpu')
+
+
+class NvidiaFan(NvidiaSensor):
+    PREFIX = 'fan'
+
+    def __init__(self, hwmon_provider, name):
+        super().__init__(hwmon_provider, name)
+
+    
+    def read_value(self):
+        return self.get_field('fan.speed')

@@ -33,7 +33,6 @@ class TestHwmon(unittest.TestCase):
         self.assertIsNone(result)
 
 
-
     def test_hwmon_info_parse_value(self):
         def test_hwmon(value, dev_base):
             result1 = HwmonProvider.parse_value(value, dev_base)
@@ -65,11 +64,11 @@ class TestHwmon(unittest.TestCase):
             self.assertEqual(result1, result2)
             return result2
 
-        hwmon, entry = test_hwmon('/virtual/nvidia0/temp0', '/sys/class/hwmon/hwmon4')
+        hwmon, entry = test_hwmon('/virtual/nvidia/nvidia0/temp0', '/sys/class/hwmon/hwmon4')
         self.assertEqual(hwmon, 'nvidia0')
         self.assertEqual(entry, 'temp0')
 
-        hwmon, entry = test_hwmon('temp0', '/virtual/nvidia0')
+        hwmon, entry = test_hwmon('/virtual/nvidia/nvidia0/temp0', 'hwmon4')
         self.assertEqual(hwmon, 'nvidia0')
         self.assertEqual(entry, 'temp0')
 

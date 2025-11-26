@@ -223,23 +223,24 @@ class InteractiveContext(Context):
 
 
     def validate_hwmon(self, value, extended=True):
-        hwmon_path = os.path.join(BaseControl.BASE_PATH, value)
-        if not os.path.isdir(hwmon_path):
+        hwmon_name = HwmonProvider.parse_hwmon(value, self.fan_config.settings.dev_base)
+        if hwmon_name is None:
+            raise PromptValidationException('invalid value')
+        if not HwmonProvider.hwmon_exists(hwmon_name):
             raise PromptValidationException('hwmon not found')
         return value
 
 
     def validate_hwmon_entry(self, value, extended=True):
         value = self.validate_string(value)
-        hwmon_name = HwmonInfo.get_hwmon_from_value(value, self.fan_config.settings.dev_base)
-        hwmon_path = os.path.join(BaseControl.BASE_PATH, hwmon_name)
-        if not os.path.isdir(hwmon_path):
-            raise PromptValidationException('hwmon not found' + hwmon_path)
-        entry_name = HwmonInfo.get_entry_from_value(value, self.fan_config.settings.dev_base)
-        entry_path = os.path.join(hwmon_path, entry_name)
-        if not os.path.isfile(entry_path):
+        result = HwmonProvider.parse_value(value, self.fan_config.settings.dev_base)
+        if result is None:
+            raise PromptValidationException('invalid value')
+        hwmon_name, hwmon_entry = result
+        if not HwmonProvider.value_exists(hwmon_name, hwmon_entry):
             raise PromptValidationException('hwmon resource not found')
-        return value
+
+        return hwmon_entry
 
 
     def validate_exists(self, value, extended=True):
