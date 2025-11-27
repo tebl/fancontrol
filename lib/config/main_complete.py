@@ -26,8 +26,8 @@ class MainCompleteContext(InteractiveContext):
         if items is None:
             items = []
 
-        self.add_summary_value(items, 'Delay', self.fan_config.delay, format_func=self.format_delay, validation_func=self.validate_exists)
-        self.add_summary_value(items, 'Device', self.fan_config.get_path(), validation_func=self.validate_exists)
+        self.add_summary_value(items, self.DELAY, self.fan_config.delay, format_func=self.format_delay, validation_func=self.validate_exists)
+        self.add_summary_value(items, self.DEVICE, self.fan_config.dev_base, validation_func=self.validate_hwmon_provider)
         self.add_summary_value(items, self.SUBKEY_CHILD + 'Path checked', self.fan_config.dev_path, validation_func=self.validate_exists)
         self.add_summary_value(items, self.SUBKEY_CHILD + 'Driver checked', self.fan_config.dev_name, validation_func=self.validate_exists)
         return super().summary(items, sep, prefix)

@@ -221,22 +221,23 @@ class InteractiveContext(Context):
         return value
 
 
-    def validate_hwmon(self, value, extended=True):
+    def validate_hwmon_provider(self, value, extended=True):
         value = self.validate_string(value)
-        if not HwmonProvider.have_instance(value):
+        hwmon_provider = HwmonProvider.get_instance(value)
+        if not hwmon_provider:
             raise PromptValidationException('invalid value')
-        return value
+        return hwmon_provider.get_title(include_summary=True)
 
 
-    def validate_hwmon_entry(self, value, extended=True):
+    def validate_hwmon_object(self, value, extended=True):
         value = self.validate_string(value)
         result = HwmonProvider.parse_value(value, self.fan_config.settings.dev_base)
         if result is None:
             raise PromptValidationException('invalid value')
-        hwmon_entry = HwmonProvider.get_object(*result)
-        if not hwmon_entry:
+        hwmon_object = HwmonProvider.get_object(*result)
+        if not hwmon_object:
             raise PromptValidationException('hwmon resource not found')
-        return hwmon_entry.get_title(include_summary=True)
+        return hwmon_object.get_title(include_summary=True)
 
 
     def validate_exists(self, value, extended=True):

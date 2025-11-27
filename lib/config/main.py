@@ -33,7 +33,7 @@ class MainContext(InteractiveContext):
             items = []
 
         self.add_summary_config(items, 'Delay', 'delay', format_func=MainLoadedContext.format_delay, validation_func=self.validate_string)
-        self.add_summary_config(items, 'Device', 'dev_base', validation_func=self.validate_hwmon)
+        self.add_summary_config(items, 'Device', 'dev_base', validation_func=self.validate_string)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Path checked', 'dev_path', validation_func=self.validate_string)
         self.add_summary_config(items, self.SUBKEY_CHILD + 'Driver checked', 'dev_name', validation_func=self.validate_string)
         self.add_summary_logging(items)
@@ -58,9 +58,12 @@ class MainContext(InteractiveContext):
     def __attempt_load(self):
         try:
             self.fan_config.settings.create_or_read()
-            self.configuration_loaded = self.fan_config.load_configuration()
-            if self.configuration_loaded:
-                self.message('Configuration loaded.', end='\n\n')
+            if not self.fan_config.load_configuration():
+                return False
+            self.message('Configuration loaded.', end='\n')
+            if not self.fan_config.load_dependencies():
+                return False
+            self.message('Dependencies loaded.', end='\n\n')
             return True
         except ConfigurationError as e:
             self.print_error(e, title='Configuration error')

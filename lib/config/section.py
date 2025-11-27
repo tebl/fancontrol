@@ -101,16 +101,16 @@ class SectionContext(InteractiveContext):
             items = []
 
         self.add_summary_value(items, self.NAME, self.section)
-        self.add_summary_config(items, self.DEVICE, 'device', validation_func=self.validate_hwmon_entry)
+        self.add_summary_config(items, self.DEVICE, 'device', validation_func=self.validate_hwmon_object)
         self.__add_status(items)
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'pwm_min', format_func=utils.format_pwm, validation_func=self.__validate_pwm_min, format_dict={ 'key': self.KEY_DEVICE_MIN })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'pwm_max', format_func=utils.format_pwm, validation_func=self.__validate_pwm_max, format_dict={ 'key': self.KEY_DEVICE_MAX })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.START, 'pwm_start', format_func=utils.format_pwm, validation_func=self.validate_pwm, format_dict={ 'key': self.KEY_DEVICE_START })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.STOP, 'pwm_stop', format_func=utils.format_pwm, validation_func=self.__validate_pwm_stop, format_dict={ 'key': self.KEY_DEVICE_STOP })
-        self.add_summary_config(items, self.SENSOR, 'sensor', validation_func=self.validate_hwmon_entry)
+        self.add_summary_config(items, self.SENSOR, 'sensor', validation_func=self.validate_hwmon_object)
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MINIMUM, 'sensor_min', format_func=utils.format_celsius, validation_func=self.__validate_sensor_min, format_dict={ 'key': self.KEY_SENSOR_MIN })
         self.add_summary_config(items, self.SUBKEY_CHILD + self.MAXIMUM, 'sensor_max', format_func=utils.format_celsius, validation_func=self.validate_temp, format_dict={ 'key': self.KEY_SENSOR_MAX })
-        self.add_summary_config(items, self.PWM_INPUT, 'pwm_input', validation_func=self.validate_hwmon_entry)
+        self.add_summary_config(items, self.PWM_INPUT, 'pwm_input', validation_func=self.validate_hwmon_object)
         return super().summary(items, sep, prefix)
 
 

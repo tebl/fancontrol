@@ -6,10 +6,10 @@ from lib import Settings, PACKAGE, PACKAGE_NAME, PACKAGE_VERSION, utils
 from lib.logger import Logger, ConsoleLogger
 from lib.exceptions import ConfigurationError, ControlException
 from lib.pid_file import PIDFile
-from lib.control import BaseControl
-from lib.hwmon import HwmonProvider
 from lib import utils
 from lib.config import MainContext
+from lib.control import BaseControl
+from lib.hwmon import HwmonProvider
 
 
 class FanConfig(BaseControl):
@@ -18,8 +18,6 @@ class FanConfig(BaseControl):
         self.console = console
         self.running = False
         self.dev_debug = dev_debug
-        HwmonProvider.configure(settings, logger)
-        HwmonProvider.load()
 
 
     def control(self, auto_select=None):
@@ -42,6 +40,11 @@ class FanConfig(BaseControl):
 
     def load_configuration(self):
         return super().load_configuration()
+    
+
+    def load_dependencies(self):
+        HwmonProvider.configure(self.settings, self.logger)
+        return HwmonProvider.load()
 
 
 def get_auto_keys(auto_key):

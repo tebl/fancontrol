@@ -17,8 +17,7 @@ class BaseControl(LoggerMixin):
         self.sensors = {}
         self.outputs = {}
         if self.auto_load:
-            self.load_configuration()
-            self.load_fans()
+            self.load()
 
 
     def get_path(self):
@@ -60,6 +59,12 @@ class BaseControl(LoggerMixin):
         return sensor
 
 
+    def load(self):
+        self.load_configuration()
+        self.load_dependencies()
+        self.load_fans()
+
+
     def load_configuration(self):
         self.delay = self.settings.delay
         if self.delay < 1:
@@ -75,7 +80,16 @@ class BaseControl(LoggerMixin):
         self.__get_attribute('dev_path')
         self.__check_dev_path()
         return True
-    
+
+
+    def load_dependencies(self):
+        '''
+        Have controller load any dependencies needed in order to build a
+        working setup. It should be called after load_configuration, but
+        before loading fan definitions.
+        '''
+        return True
+
 
     def load_fans(self):
         self.__load_fans()

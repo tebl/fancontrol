@@ -4,12 +4,13 @@ import sys
 import argparse
 import time
 from lib import Settings, PACKAGE, PACKAGE_NAME, utils, ANSIFormatter
-from lib.logger import *
-from lib.exceptions import *
+from lib.logger import Logger, ConsoleLogger, LogfileLogger, JournalLogger, FormattedLogger
+from lib.exceptions import ControlRuntimeError, ConfigurationError, SensorException, ControlException
 from lib.interrupt import InterruptHandler
 from lib.pid_file import PIDFile
 from lib.control import BaseControl, PWMSensor
 from lib.scheduler import MicroScheduler
+from lib.hwmon import HwmonProvider
 
 
 class FanControl(BaseControl):
@@ -47,6 +48,11 @@ class FanControl(BaseControl):
             self.log_warning('{} INT received, halting...'.format(self))
             self.running = False
         return self.running
+
+
+    def load_dependencies(self):
+        HwmonProvider.configure(self.settings, self.logger)
+        return HwmonProvider.load()
 
 
     def set_logger(self, logger):
