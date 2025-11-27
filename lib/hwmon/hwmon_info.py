@@ -126,20 +126,6 @@ class HwmonInfo(HwmonProvider):
 
 
     @classmethod
-    def try_parsing_hwmon(cls, value, dev_base):
-        '''
-        Parse hwnon path, passed either as a full path or as a relative path
-        assumed to be located within dev_base.
-        '''
-        if not dev_base.startswith(cls.BASE_PATH):
-            dev_base = os.path.join(cls.BASE_PATH, dev_base)
-        if value.startswith(cls.BASE_PATH):
-            return value
-        print('failed for:', value)
-        return None
-
-
-    @classmethod
     def try_parsing_value(cls, value, dev_base):
         '''
         Parse hwnon entry paths, passed either as a full path or as a relative
@@ -210,11 +196,9 @@ class HwmonFile(HwmonObject):
         return self.has_suffix_key('_input')
 
 
-    def matches(self, hwmon_name, name):
-        if not self.hwmon_provider.matches(hwmon_name):
-            return False
-        return self.input == name
-    
+    def matches(self, hwmon_entry):
+        return self.input == hwmon_entry
+
 
     def read_key(self, suffix=''):
         file_path = self.__get_path(suffix)

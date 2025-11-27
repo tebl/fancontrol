@@ -1,13 +1,12 @@
-import os, traceback
-from ..logger import LoggerMixin, Logger, InteractiveLogger, ConfirmPromptBuilder, PromptValidationException
-from ..control import BaseControl, Fan
-from ..hwmon import HwmonProvider
-from ..hwmon.hwmon_info import HwmonInfo
+import traceback
+from ..logger import Logger, InteractiveLogger, ConfirmPromptBuilder, PromptValidationException
+from ..control import Fan
+from ..hwmon import HwmonObject, HwmonProvider
 from ..logger import PromptBuilder
 from .. import utils
 
 
-class Context(LoggerMixin):
+class Context:
     '''
     Base class, mostly here to define operations that don't require any kind of
     data as well as provide static building blocks for InteractiveContext.
@@ -223,11 +222,9 @@ class InteractiveContext(Context):
 
 
     def validate_hwmon(self, value, extended=True):
-        hwmon_name = HwmonProvider.parse_hwmon(value, self.fan_config.settings.dev_base)
-        if hwmon_name is None:
+        value = self.validate_string(value)
+        if not HwmonProvider.have_instance(value):
             raise PromptValidationException('invalid value')
-        if not HwmonProvider.hwmon_exists(hwmon_name):
-            raise PromptValidationException('hwmon not found')
         return value
 
 
@@ -236,11 +233,10 @@ class InteractiveContext(Context):
         result = HwmonProvider.parse_value(value, self.fan_config.settings.dev_base)
         if result is None:
             raise PromptValidationException('invalid value')
-        hwmon_name, hwmon_entry = result
-        if not HwmonProvider.value_exists(hwmon_name, hwmon_entry):
+        hwmon_entry = HwmonProvider.get_object(*result)
+        if not hwmon_entry:
             raise PromptValidationException('hwmon resource not found')
-
-        return hwmon_entry
+        return hwmon_entry.get_title(include_summary=True)
 
 
     def validate_exists(self, value, extended=True):
@@ -306,42 +302,41 @@ class InteractiveContext(Context):
         self.message(description.format(name, value), styling=Logger.DEBUG, end='\n\n')
 
 
-    def hwmon_load(self, validation_func=None):
+    def hwmon_list_providers(self, hwmon_providers, current_object):
         '''
-        Index sysfs for registered hwmon-entries, results are returned as a
-        list of HwmonInfo instances. An optional validation method can be
-        supplied in order to make decisions on which entries to include.
+        List instances of HwmonProvider, a suitable list of which can be
+        obtained using HwmonProvider.filter_instances().
         '''
-        return HwmonProvider.filter_instances(validation_func)
+        selected_provider = current_object
+        if isinstance(current_object, HwmonObject):
+            selected_provider = current_object.hwmon_provider
 
-
-    def hwmon_list(self, hwmon_list, current):
-        '''
-        List instances of HwmonInfo, a suitable list can be loaded using
-        hwmon_load-method.
-        '''
         self.message('Listing hwmon:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
-        if hwmon_list:
-            for hwmon in hwmon_list:
-                styling = InteractiveLogger.DIRECT_HIGHLIGHT if hwmon.matches(current) else Logger.DEBUG
-                self.message(self.SUBKEY_INDENT + hwmon.get_title(include_summary=True), styling=styling)
+        if hwmon_providers:
+            for provider in hwmon_providers:
+                styling = InteractiveLogger.DIRECT_HIGHLIGHT if selected_provider is provider else Logger.DEBUG
+                self.message(self.SUBKEY_INDENT + provider.get_title(include_summary=True), styling=styling)
         else:
             self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
         self.message()
 
 
-    def hwmon_select(self, hwmon_list, current):
+    def hwmon_select_provider(self, hwmon_providers, current_object):
         '''
         Prompt the user to select an instance of HwmonInfo, a suitable list can
         be loaded using hwmon_load-method.
         '''
+        selected_provider = current_object
+        if isinstance(current_object, HwmonObject):
+            selected_provider = current_object.get_provider()
+
         choices = {}
         builder = PromptBuilder(self.console)
         builder.add_cancel()
-        for hwmon in hwmon_list:
-            is_current = hwmon.matches(current)
-            key = builder.set_next(hwmon.get_title(include_summary=False), start_at=hwmon.suggest_key(), highlight=is_current)
-            choices[key] = hwmon
+        for provider in hwmon_providers:
+            is_current = provider is selected_provider
+            key = builder.set_next(provider.get_title(include_summary=False), start_at=provider.suggest_key(), highlight=is_current)
+            choices[key] = provider
             if is_current:
                 builder.set_default(key)
 
@@ -360,25 +355,25 @@ class InteractiveContext(Context):
         return None
 
 
-    def hwmon_list_entries(self, hwmon_entries, current_hwmon, current_value):
+    def hwmon_list_objects(self, hwmon_entries, current_object):
         self.message('Listing entries:', styling=InteractiveLogger.DIRECT_HIGHLIGHT)
         if hwmon_entries:
             for entry in hwmon_entries:
-                styling = InteractiveLogger.DIRECT_HIGHLIGHT if entry.matches(current_hwmon, current_value) else Logger.DEBUG
+                styling = InteractiveLogger.DIRECT_HIGHLIGHT if entry is current_object else Logger.DEBUG
                 self.message(self.SUBKEY_INDENT + entry.get_title(include_summary=True), styling=styling)
         else:
             self.error(self.SUBKEY_INDENT + 'No suitable hwmon entries found. Has a suitable driver been loaded?')
         self.message()
 
 
-    def hwmon_select_entry(self, hwmon_entries, current_hwmon, current_entry, prompt='Select resource'):
-        self.hwmon_list_entries(hwmon_entries, current_hwmon, current_entry)
+    def hwmon_select_object(self, hwmon_objects, current_object, prompt='Select resource'):
+        self.hwmon_list_objects(hwmon_objects, current_object)
 
         choices = {}
         builder = PromptBuilder(self.console)
         builder.add_cancel()
-        for entry in hwmon_entries:
-            is_current = True if entry.matches(current_hwmon, current_entry) else False
+        for entry in hwmon_objects:
+            is_current = (entry is current_object)
             key = builder.set_next(entry.get_title(include_summary=False), start_at=entry.suggest_key(), highlight=is_current)
             choices[key] = entry
             if is_current:

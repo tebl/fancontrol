@@ -3,10 +3,11 @@
 import sys
 import argparse
 from lib import Settings, PACKAGE, PACKAGE_NAME, PACKAGE_VERSION, utils
-from lib.logger import *
-from lib.exceptions import *
+from lib.logger import Logger, ConsoleLogger
+from lib.exceptions import ConfigurationError, ControlException
 from lib.pid_file import PIDFile
 from lib.control import BaseControl
+from lib.hwmon import HwmonProvider
 from lib import utils
 from lib.config import MainContext
 
@@ -17,6 +18,8 @@ class FanConfig(BaseControl):
         self.console = console
         self.running = False
         self.dev_debug = dev_debug
+        HwmonProvider.configure(settings, logger)
+        HwmonProvider.load()
 
 
     def control(self, auto_select=None):

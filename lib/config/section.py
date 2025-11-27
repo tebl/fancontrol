@@ -1,7 +1,7 @@
 import os
 from ..logger import Logger, InteractiveLogger, PromptBuilder, ConfirmPromptBuilder, PromptValidationException
 from ..exceptions import ControlRuntimeError
-from ..hwmon.hwmon_info import HwmonInfo
+from ..hwmon import HwmonProvider
 from .. import utils
 from .context import InteractiveContext
 
@@ -244,20 +244,18 @@ class SectionContext(InteractiveContext):
         it.
         '''
         current_value = self.fan_config.settings.get(self.section, write_attribute)
-        current_hwmon = HwmonInfo.get_hwmon_from_value(current_value, self.fan_config.settings.dev_base)
-        current_entry = HwmonInfo.get_entry_from_value(current_value, self.fan_config.settings.dev_base)
+        current_object = HwmonProvider.resolve_entry(current_value, self.fan_config.settings.dev_base)
 
         self.message()
-        hwmon_info = self.__select_hwmon(current_hwmon, validation_func=validation_func)
+        hwmon_info = self.__select_hwmon(current_object, filter_func=validation_func)
         if not hwmon_info:
             return self
 
         self.message()
-        hwmon_entry = self.hwmon_select_entry(
-            hwmon_entries = getattr(hwmon_info, read_attribute),
-            current_hwmon = current_hwmon,
-            current_entry = current_entry,
-            prompt = prompt
+        hwmon_entry = self.hwmon_select_object(
+            hwmon_objects=getattr(hwmon_info, read_attribute),
+            current_object=current_object,
+            prompt=prompt
         )
 
         if not hwmon_entry:
@@ -270,15 +268,16 @@ class SectionContext(InteractiveContext):
         return self
 
 
-    def __select_hwmon(self, current, validation_func):
+    def __select_hwmon(self, current_object, filter_func):
         '''
         Loads information from hwmon, gives a formatted listing before allowing
         you to choose one of them. Validation function can be passed as
         reference in order to qualify hwmon-candidates.
         '''
-        hwmon_list = self.hwmon_load(validation_func)
-        self.hwmon_list(hwmon_list, current)
-        return self.hwmon_select(hwmon_list, current)
+        print('__select_hwmon', current_object)
+        hwmon_instances = HwmonProvider.filter_instances(filter_func=filter_func)
+        self.hwmon_list_providers(hwmon_instances, current_object)
+        return self.hwmon_select_provider(hwmon_instances, current_object)
 
 
     def __hwmon_has_devices(self, hwmon_entry):

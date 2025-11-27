@@ -20,6 +20,10 @@ class HwmonObject(ABC):
         ...
 
 
+    def get_provider(self):
+        return self.hwmon_provider
+
+
     @abstractmethod
     def get_title(self, include_summary=False, include_value=True):
         ...
@@ -30,10 +34,9 @@ class HwmonObject(ABC):
         ...
 
 
-    def matches(self, hwmon_name, hwmon_entry):
-        if not self.hwmon_provider.matches(hwmon_name):
-            return False
-        return self.input == hwmon_entry
+    @abstractmethod
+    def matches(self, hwmon_entry):
+        ...
 
 
     @abstractmethod

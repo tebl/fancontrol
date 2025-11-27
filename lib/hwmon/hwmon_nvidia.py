@@ -99,17 +99,6 @@ class HwmonNvidia(HwmonProvider):
 
 
     @classmethod
-    def try_parsing_hwmon(cls, value, dev_base):
-        '''
-        Parse hwnon path, passed either as a full path or as a relative path
-        assumed to be located within dev_base.
-        '''
-        if value.startswith(cls.BASE_PATH):
-            return value
-        return None
-
-
-    @classmethod
     def try_parsing_value(cls, value, dev_base):
         '''
         Parse hwnon entry paths, as it can't be used as a device entry we
@@ -143,16 +132,18 @@ class NvidiaSensor(HwmonObject):
     def get_input(self, dev_base):
         if self.hwmon_provider.matches(dev_base):
             return self.name
-        self.hwmon_provider.gpu_id
         return os.path.join(self.hwmon_provider.get_path(), self.name)
 
 
-    def get_title(self, include_summary=False, include_value=True):
+    def get_title(self, include_summary=False, include_value=True, symbolic_name=True):
+        name = self.name
+        if symbolic_name:
+            name = '{}::{}'.format(str(self.hwmon_provider), self.name)
         if not include_summary:
-            return self.name
+            return name
         if not include_value:
-            return self.name
-        return '{} (value={})'.format(self.name, self.read_value())
+            return name
+        return '{} (value={})'.format(name, self.read_value())
 
     
     def is_valid(self):
@@ -162,6 +153,10 @@ class NvidiaSensor(HwmonObject):
     def get_field(self, field):
         data = self.__class__.get_data(self.hwmon_provider.gpu_id)
         return data[field]
+
+
+    def matches(self, hwmon_entry):
+        return self.name == hwmon_entry
 
 
     @classmethod

@@ -1,5 +1,6 @@
 import os
 from abc import ABC, abstractmethod
+from ..logger import Logger
 from .hwmon_object import HwmonObject
 
 
@@ -40,6 +41,13 @@ class HwmonProvider(ABC):
             len(self.sensors),
             len(self.pwm_inputs)
         )
+    
+
+    def get_object_named(self, entry_name):
+        for hwmon_object in (self.devices + self.sensors + self.pwm_inputs):
+            if hwmon_object.matches(entry_name):
+                return hwmon_object
+        return None
 
 
     @abstractmethod
@@ -105,6 +113,51 @@ class HwmonProvider(ABC):
     
 
     @classmethod
+    def configure(cls, settings, logger):
+        '''
+        Configures HwmonProvider with providers for settings as well as an
+        instance of Logger.
+        '''
+        cls.settings = settings
+        cls.logger = logger
+        cls.log('{} configured'.format(cls.__name__), log_level=Logger.VERBOSE)
+
+
+    @classmethod
+    def get_instance(cls, name):
+        for provider_instance in cls.instances:
+            if provider_instance.matches(name):
+                return provider_instance
+        return None
+
+
+    @classmethod
+    def get_object(cls, hwmon_name, object_name):
+        hwmon_instance = cls.get_instance(hwmon_name)
+        if not hwmon_instance:
+            return None
+        return hwmon_instance.get_object_named(object_name)
+
+
+    @classmethod
+    def resolve_entry(cls, value, dev_base):
+        result = cls.parse_value(value, dev_base)
+        if result is None:
+            return None
+        return cls.get_object(*result)
+
+
+    @classmethod
+    def have_instance(cls, name):
+        return cls.get_instance(name) is not None
+
+
+    @classmethod
+    def have_object(cls, hwmon_name, entry_name):
+        return cls.get_object(hwmon_name, entry_name) is not None
+
+
+    @classmethod
     @abstractmethod
     def is_supported(cls):
         '''
@@ -112,65 +165,6 @@ class HwmonProvider(ABC):
         return False if some dependecy is missing.
         '''
         ...
-
-
-    @classmethod
-    def parse_hwmon(cls, value, dev_base):
-        for provider_type in cls.__subclasses__():
-            result = provider_type.try_parsing_hwmon(value, dev_base)
-            if result is not None:
-                return result
-        return None
-
-
-    @classmethod
-    def parse_value(cls, value, dev_base):
-        for provider_type in cls.__subclasses__():
-            result = provider_type.try_parsing_value(value, dev_base)
-            if result is not None:
-                return result
-        return None
-
-
-    @classmethod
-    @abstractmethod
-    def try_parsing_hwmon(cls, value, dev_base):
-        '''
-        Parse hwnon path, passed either as a full path or as a relative path
-        assumed to be located within dev_base.
-        '''
-        ...
-
-
-    @classmethod
-    @abstractmethod
-    def try_parsing_value(cls, value, dev_base):
-        '''
-        Parse hwnon entry paths, passed either as a full path or as a relative
-        path assumed to be located within dev_base.
-        '''
-        ...
-    
-
-    @classmethod
-    def configure(cls, settings, logger):
-        cls.settings = settings
-        cls.logger = logger
-
-
-    @classmethod
-    def load(cls):
-        '''
-        Load provider instances using supported sub-systems, as determined by the
-        implementation itself. Settings and logger provided by the system in case
-        I ever need them.
-        '''
-        cls.instances.clear()
-        for provider_type in cls.__subclasses__():
-            if provider_type.is_supported():
-                cls.instances += provider_type.load_provider()
-        cls.instances_loaded = True
-        return cls.instances_loaded
 
 
     @classmethod
@@ -218,10 +212,58 @@ class HwmonProvider(ABC):
 
 
     @classmethod
+    def load(cls):
+        '''
+        Load provider instances using supported sub-systems, as determined by the
+        implementation itself. Settings and logger provided by the system in case
+        I ever need them.
+        '''
+        cls.instances.clear()
+        for provider_type in cls.__subclasses__():
+            if provider_type.is_supported():
+                cls.instances += provider_type.load_provider()
+        cls.instances_loaded = True
+        cls.log('{} loaded ({}):'.format(
+                cls.__name__,
+                ', '.join([provider_type.__name__ for provider_type in cls.__subclasses__()])
+            ), 
+            log_level=Logger.VERBOSE
+        )
+        for provider_instance in cls.instances:
+            cls.log('\u21B3 ' + provider_instance.get_title(include_summary=True), log_level=Logger.VERBOSE)
+        return cls.instances_loaded
+
+
+    @classmethod
     @abstractmethod
     def load_provider(cls):
         '''
         Load instances from a specific provider.
+        '''
+        ...
+
+
+    @classmethod
+    def log(cls, message, log_level=Logger.INFO, end='\n'):
+        if cls.logger:
+            cls.logger.log(message, log_level=log_level, end=end)
+
+
+    @classmethod
+    def parse_value(cls, value, dev_base):
+        for provider_type in cls.__subclasses__():
+            result = provider_type.try_parsing_value(value, dev_base)
+            if result is not None:
+                return result
+        return None
+
+
+    @classmethod
+    @abstractmethod
+    def try_parsing_value(cls, value, dev_base):
+        '''
+        Parse hwnon entry paths, passed either as a full path or as a relative
+        path assumed to be located within dev_base.
         '''
         ...
 
