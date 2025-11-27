@@ -31,6 +31,10 @@ class HwmonProvider(ABC):
         ...
 
 
+    def get_driver_path(self):
+        raise NotImplementedError('get_driver_path not implemented')
+
+
     def get_title(self, include_summary=False):
         if not include_summary:
             return self.name

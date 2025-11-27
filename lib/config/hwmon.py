@@ -36,8 +36,8 @@ class HWMONContext(InteractiveContext):
         return super().summary(items, sep, prefix)
 
 
-    def __is_suitable(self, hwmon_entry):
-        return hwmon_entry.devices and hwmon_entry.sensors and hwmon_entry.pwm_inputs
+    def __is_suitable(self, hwmon_provider):
+        return hwmon_provider.devices and hwmon_provider.sensors and hwmon_provider.pwm_inputs
 
 
     def __get_prompt_builder(self):
@@ -57,7 +57,7 @@ class HWMONContext(InteractiveContext):
         if self.console.prompt_choices(ConfirmPromptBuilder(self.console), prompt=self.CONFIRM_CHANGE) == 'y':
             self.fan_config.settings.set('Settings', 'dev_base', hwmon_provider.name)
             self.fan_config.settings.set('Settings', 'dev_name', hwmon_provider.get_driver_name())
-            self.fan_config.settings.set('Settings', 'dev_path', hwmon_provider.get_dev_path())
+            self.fan_config.settings.set('Settings', 'dev_path', hwmon_provider.get_driver_path())
 
             for section in self.fan_config.settings.sections():
                 self.fan_config.settings.set_enabled(section, False)

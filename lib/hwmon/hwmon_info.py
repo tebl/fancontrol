@@ -36,7 +36,7 @@ class HwmonInfo(HwmonProvider):
             raise ControlRuntimeError(str(e))
 
 
-    def get_dev_path(self, prefix='/sys/'):
+    def get_driver_path(self, prefix='/sys/'):
         device_path = os.path.join(self.base_path, 'device')
         device_path = os.path.realpath(device_path)
         if not device_path[:len(prefix)] == prefix:
