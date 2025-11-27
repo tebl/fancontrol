@@ -274,7 +274,6 @@ class SectionContext(InteractiveContext):
         you to choose one of them. Validation function can be passed as
         reference in order to qualify hwmon-candidates.
         '''
-        print('__select_hwmon', current_object)
         hwmon_instances = HwmonProvider.filter_instances(filter_func=filter_func)
         self.hwmon_list_providers(hwmon_instances, current_object)
         return self.hwmon_select_provider(hwmon_instances, current_object)

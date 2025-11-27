@@ -106,7 +106,6 @@ class HwmonInfo(HwmonProvider):
             dirnames.sort()
             for dir in dirnames:
                 hwmon_entry = cls(dir, os.path.join(cls.BASE_PATH, dir))
-                # if validation_func is None or validation_func(hwmon_entry):
                 instances.append(hwmon_entry)
         return instances
     

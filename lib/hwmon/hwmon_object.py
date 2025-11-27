@@ -25,7 +25,7 @@ class HwmonObject(ABC):
 
 
     @abstractmethod
-    def get_title(self, include_summary=False, include_value=True):
+    def get_title(self, include_summary=False, include_value=True, symbolic_name=True):
         ...
 
 
