@@ -1,4 +1,3 @@
-import os.path
 from ..logger import LoggerMixin
 from ..exceptions import *
 from .pwm_request import PWMRequest
