@@ -23,6 +23,9 @@ class TestHwmon(unittest.TestCase):
         self.assertIsInstance(providers, list)
         for provider in providers:
             self.assertIsInstance(provider.get_title(include_summary=True), str)
+            for sensor in provider.sensors:
+                self.assertIsInstance(sensor.get_title(include_summary=True, include_value=True), str)
+                self.assertIsInstance(sensor.read_value(), int)
 
 
     def test_wrong_parser(self):
@@ -98,3 +101,4 @@ class TestHwmon(unittest.TestCase):
 
             for sensor in provider.sensors:
                 self.assertIsInstance(sensor.get_title(include_summary=True, include_value=True), str)
+                self.assertIsInstance(sensor.read_value(), int)

@@ -1,5 +1,5 @@
 import os
-from ..exceptions import ControlRuntimeError
+from ..exceptions import ControlRuntimeError, SensorException
 from ..utils import format_pwm, format_rpm, format_celsius
 from ..control import BaseControl
 from .hwmon_provider import HwmonProvider
@@ -28,12 +28,7 @@ class HwmonInfo(HwmonProvider):
 
     def get_driver_name(self):
         file_path = os.path.join(self.base_path, 'name')
-        try:
-            with open(file_path, 'r') as file:
-                data = file.read()
-                return data.strip()
-        except FileNotFoundError as e:
-            raise ControlRuntimeError(str(e))
+        return self.read_from(file_path, strip_contents=True)
 
 
     def get_driver_path(self, prefix='/sys/'):
@@ -45,10 +40,7 @@ class HwmonInfo(HwmonProvider):
 
 
     def get_path(self):
-        return os.path.join(
-            self.BASE_PATH, 
-            self.name
-        )
+        return self.base_path
 
 
     def suggest_key(self):
@@ -110,8 +102,8 @@ class HwmonInfo(HwmonProvider):
         return instances
     
 
-    @staticmethod
-    def read_contents(file_path, strip_contents=True, convert_func=None):
+    @classmethod
+    def read_from(cls, file_path, strip_contents=True, convert_func=None):
         try:
             with open(file_path, 'r') as file:
                 data = file.read()
@@ -121,7 +113,7 @@ class HwmonInfo(HwmonProvider):
                     data = convert_func(data)
                 return data
         except (FileNotFoundError, ValueError) as e:
-            raise ControlRuntimeError(str(e))
+            raise SensorException(str(e))
 
 
     @classmethod
@@ -130,6 +122,9 @@ class HwmonInfo(HwmonProvider):
         Parse hwnon entry paths, passed either as a full path or as a relative
         assumed to be located within dev_base.
         '''
+        if isinstance(dev_base, HwmonProvider):
+            dev_base = dev_base.get_path()
+
         if not dev_base.startswith(cls.BASE_PATH):
             dev_base = os.path.join(cls.BASE_PATH, dev_base)
 
@@ -152,6 +147,20 @@ class HwmonInfo(HwmonProvider):
         return None
 
 
+    @classmethod
+    def write_to(cls, file_path, value, convert_func=str):
+        if convert_func is not None:
+            value = convert_func(value)
+
+        try:
+            with open(file_path, 'w') as file:
+                file.write('{}'.format(str(value)))
+                return True
+        except (FileNotFoundError, PermissionError) as e:
+            raise SensorException('{} could not write {} to {} ({})'.format(cls, str(value), file_path, e))
+        return False
+
+
 class HwmonFile(HwmonObject):
     def __init__(self, hwmon_provider, name, base_path, input):
         self.hwmon_provider = hwmon_provider
@@ -159,10 +168,6 @@ class HwmonFile(HwmonObject):
         self.base_path = base_path
         self.input = input
         self.label = self.read_key('_label')
-
-
-    def format_value(self, value):
-        return str(value)
 
 
     def get_input(self, dev_base):
@@ -176,23 +181,38 @@ class HwmonFile(HwmonObject):
         return os.path.join(self.base_path, self.input)
 
 
-    def get_title(self, include_summary=False, include_value=True):
+    def get_title(self, include_summary=False, include_value=True, symbolic_name=True):
+        name = self.input
+        if symbolic_name:
+            name = self.get_symbol_name()
+
         terms = []
         if include_summary:
             if include_value:
-                terms.append('value=' + self.read_value())
+                terms.append('value={}'.format(self.read_formatted()))
             if self.label:
-                terms.append('label=' + self.label)
+                terms.append('label={}'.format(self.label))
         if terms:
-            return '{} ({})'.format(
-                self.input,
-                ', '.join(terms)
-            )
-        return self.input
+            return '{} ({})'.format(name, ', '.join(terms))
+        return name
+
+
+    def has_suffix_key(self, suffix=''):
+        file_path = self.get_entry_path(suffix)
+        return os.path.isfile(file_path)
 
 
     def is_valid(self):
-        return self.has_suffix_key('_input')
+        file_path = self.get_entry_path('_input')
+        if not os.path.isfile(file_path):
+            raise ControlRuntimeError('path {} did not exist'.format(file_path))
+        if not os.access(file_path, os.R_OK):
+            raise ControlRuntimeError('path {} is not readable'.format(file_path))
+        return True
+
+
+    def is_writable(self):
+        return True
 
 
     def matches(self, hwmon_entry):
@@ -200,29 +220,37 @@ class HwmonFile(HwmonObject):
 
 
     def read_key(self, suffix=''):
-        file_path = self.__get_path(suffix)
+        file_path = self.get_entry_path(suffix)
         if os.path.isfile(file_path):
             try:
-                return HwmonInfo.read_contents(file_path, strip_contents=True)
-            except ControlRuntimeError as e:
+                return HwmonInfo.read_from(file_path, strip_contents=True)
+            except SensorException as e:
                 pass
         return None
 
 
+    def read_formatted(self):
+        return str(self.read_value())
+
+
     def read_value(self):
-        return HwmonInfo.read_contents(
+        return HwmonInfo.read_from(
             os.path.join(self.base_path, self.input),
             strip_contents=True, 
-            convert_func=self.format_value
+            convert_func=int
         )
-    
-
-    def has_suffix_key(self, suffix=''):
-        file_path = self.__get_path(suffix)
-        return os.path.isfile(file_path)
 
 
-    def __get_path(self, suffix=''):
+    def write_value(self, value, ignore_exceptions=False):
+        try:
+            return HwmonInfo.write_to(os.path.join(self.base_path, self.input), value)
+        except SensorException as e:
+            if not ignore_exceptions:
+                raise
+        return False
+
+
+    def get_entry_path(self, suffix=''):
         result = os.path.join(self.base_path, self.name)
         if not suffix:
             return result
@@ -251,9 +279,14 @@ class HwmonTemp(HwmonFile):
     SUFFIX = '_input'
 
 
-    def format_value(self, value):
-        value = int(value) / 1000
-        return format_celsius(value)
+    def read_formatted(self):
+        return format_celsius(self.read_value())
+
+
+    def read_value(self):
+        value = super().read_value()
+        value = round(int(value) / 1000)
+        return value
 
 
     @classmethod
@@ -268,8 +301,8 @@ class HwmonFan(HwmonFile):
     SUFFIX = '_input'
 
 
-    def format_value(self, value):
-        return format_rpm(int(value))
+    def read_formatted(self):
+        return format_rpm(self.read_value())
 
 
     @classmethod
@@ -284,12 +317,33 @@ class HwmonPWM(HwmonFile):
     SUFFIX = '_enable'
 
 
-    def format_value(self, value):
-        return format_pwm(int(value))
+    def read_formatted_value(self):
+        return format_pwm(self.read_value())
+
+
+    def has_enable(self):
+        return True
 
 
     def is_valid(self):
-        return self.has_suffix_key() and self.has_suffix_key('_enable')
+        return self.has_suffix_key() and self.has_suffix_key(self.SUFFIX)
+
+
+    def read_enable(self):
+        return HwmonInfo.read_from(
+            self.get_entry_path(self.SUFFIX),
+            strip_contents=True, 
+            convert_func=int
+        )
+
+
+    def write_enable(self, value, ignore_exceptions=False):
+        try:
+            return HwmonInfo.write_to(self.get_entry_path(self.SUFFIX), value)
+        except ControlRuntimeError as e:
+            if not ignore_exceptions:
+                raise
+        return False
 
 
     @classmethod

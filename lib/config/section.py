@@ -244,7 +244,7 @@ class SectionContext(InteractiveContext):
         it.
         '''
         current_value = self.fan_config.settings.get(self.section, write_attribute)
-        current_object = HwmonProvider.resolve_entry(current_value, self.fan_config.settings.dev_base)
+        current_object = HwmonProvider.resolve_object(current_value, self.fan_config.settings.dev_base)
 
         self.message()
         hwmon_info = self.__select_hwmon(current_object, filter_func=validation_func)

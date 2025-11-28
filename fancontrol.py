@@ -15,7 +15,7 @@ from lib.hwmon import HwmonProvider
 
 class FanControl(BaseControl):
     def __init__(self, settings, logger):
-        super().__init__(settings, logger)
+        super().__init__(settings, logger, HwmonProvider)
         self.running = False
 
 
@@ -53,6 +53,10 @@ class FanControl(BaseControl):
     def load_dependencies(self):
         HwmonProvider.configure(self.settings, self.logger)
         return HwmonProvider.load()
+
+
+    def resolve_object(self, value):
+        return HwmonProvider.resolve_object(value, self.dev_base)
 
 
     def set_logger(self, logger):

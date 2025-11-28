@@ -5,8 +5,8 @@ from .raw_sensor import RawSensor
 
 
 class Sensor(RawSensor, LoggerMixin):
-    def __init__(self, controller, settings, logger, name, device_path, auto_load=True):
-        super().__init__(logger, name, device_path, auto_load=auto_load)
+    def __init__(self, controller, settings, logger, name, hwmon_object, auto_load=True):
+        super().__init__(logger, name, hwmon_object, auto_load=auto_load)
         self.controller = controller
         self.settings = settings
         self.fans = []

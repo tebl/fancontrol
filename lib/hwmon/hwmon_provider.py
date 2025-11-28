@@ -29,10 +29,18 @@ class HwmonProvider(ABC):
         renumbered between boots.
         '''
         ...
+    
+
+    def check_driver_name(self, value):
+        return self.get_driver_name() == value
 
 
     def get_driver_path(self):
         raise NotImplementedError('get_driver_path not implemented')
+
+
+    def check_driver_path(self, value):
+        return self.get_driver_path() == value
 
 
     def get_title(self, include_summary=False):
@@ -128,23 +136,15 @@ class HwmonProvider(ABC):
 
 
     @classmethod
-    def get_instance(cls, name):
-        for provider_instance in cls.instances:
-            if provider_instance.matches(name):
-                return provider_instance
-        return None
-
-
-    @classmethod
     def get_object(cls, hwmon_name, object_name):
-        hwmon_instance = cls.get_instance(hwmon_name)
+        hwmon_instance = cls.resolve_provider(hwmon_name)
         if not hwmon_instance:
             return None
         return hwmon_instance.get_object_named(object_name)
 
 
     @classmethod
-    def resolve_entry(cls, value, dev_base):
+    def resolve_object(cls, value, dev_base):
         result = cls.parse_value(value, dev_base)
         if result is None:
             return None
@@ -152,8 +152,16 @@ class HwmonProvider(ABC):
 
 
     @classmethod
+    def resolve_provider(cls, name):
+        for provider_instance in cls.instances:
+            if provider_instance.matches(name):
+                return provider_instance
+        return None
+
+
+    @classmethod
     def have_instance(cls, name):
-        return cls.get_instance(name) is not None
+        return cls.resolve_provider(name) is not None
 
 
     @classmethod

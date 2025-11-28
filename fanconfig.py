@@ -14,7 +14,7 @@ from lib.hwmon import HwmonProvider
 
 class FanConfig(BaseControl):
     def __init__(self, settings, logger, console, dev_debug=False):
-        super().__init__(settings, logger, auto_load=False)
+        super().__init__(settings, logger, HwmonProvider, auto_load=False)
         self.console = console
         self.running = False
         self.dev_debug = dev_debug
@@ -44,7 +44,9 @@ class FanConfig(BaseControl):
 
     def load_dependencies(self):
         HwmonProvider.configure(self.settings, self.logger)
-        return HwmonProvider.load()
+        if not HwmonProvider.load():
+            raise ConfigurationError('HwmonProvider failed to complete loading')
+        return super().load_dependencies()
 
 
 def get_auto_keys(auto_key):

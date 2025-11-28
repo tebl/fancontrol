@@ -14,7 +14,7 @@ class HWMONContext(InteractiveContext):
         self.summary()
 
         self.hwmon_instances = HwmonProvider.filter_instances(filter_func=self.__is_suitable)
-        self.hwmon_list_providers(self.hwmon_instances, current_object=HwmonProvider.get_instance(self.fan_config.settings.dev_base))
+        self.hwmon_list_providers(self.hwmon_instances, current_object=HwmonProvider.resolve_provider(self.fan_config.settings.dev_base))
 
         input = self.console.prompt_choices(self.__get_prompt_builder(), prompt=self, auto_select=auto_select)
         match input:

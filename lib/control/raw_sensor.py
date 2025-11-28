@@ -4,10 +4,10 @@ from ..exceptions import SensorException, ConfigurationError
 
 
 class RawSensor(LoggerMixin):
-    def __init__(self, logger, name, device_path, auto_load=True):
+    def __init__(self, logger, name, hwmon_object, auto_load=True):
         self.logger = logger
         self.name = name
-        self.device_path = device_path
+        self.hwmon_object = hwmon_object
 
 
     def format_value(self, value):
@@ -23,7 +23,7 @@ class RawSensor(LoggerMixin):
             return self.name
         return '{} (value={})'.format(
             self.name,
-            str(self.format_value(self.read_int(self.device_path)))
+            str(self.format_value(self.read_value()))
         )
 
 
@@ -43,38 +43,28 @@ class RawSensor(LoggerMixin):
     
 
     def load_configuration(self):
-        if not os.path.isfile(self.device_path):
-            raise ConfigurationError('{}.{} not found'.format(self, 'device_path'), self.device_path)
-        if not os.access(self.device_path, os.R_OK):
-            raise ConfigurationError('{}.{} read access missing'.format(self, 'device_path'), self.device_path)
-        self.log_verbose('{}.{} input OK'.format(self, 'device_path', self.device_path))
+        if not self.hwmon_object:
+            raise ConfigurationError('{}.{} not found'.format(self, 'device'), self.hwmon_object)
+        if not self.hwmon_object.is_valid():
+            raise ConfigurationError('{}.{} not valid'.format(self, 'device'), self.hwmon_object)
+        self.log_verbose('{}.{} input OK'.format(self, 'device', self.hwmon_object))
         return True
 
 
-    def read(self, sensor_path):
-        '''
-        Reads the value of a specified sensor, and while this might be caused
-        by various errors we're simplifying all of them since the bottom is
-        that we didn't get the data needed.
-        '''
-        try:
-            with open(sensor_path, 'r') as file:
-                data = file.read()
-                return int(data)
-        except FileNotFoundError as e:
-            raise SensorException(str(e))
+    def read_value(self):
+        return self.hwmon_object.read_value()
 
 
-    def read_int(self, sensor_path):
-        '''
-        Reads an integer value from the specified sensor, and while this might
-        be caused by various errors we're simplifying all of them since the
-        bottom is that we didn't get the data needed.
-        '''
-        try:
-            return int(self.read(sensor_path))
-        except ValueError as e:
-            raise SensorException(str(e))
+    def require_writable(self):
+        return False
+    
+
+    def require_has_enable(self):
+        return False
+
+
+    def write_value(self, value, ignore_exceptions=False):
+        return self.hwmon_object.write_value(value, ignore_exceptions)
 
 
     def update(self):
@@ -83,24 +73,8 @@ class RawSensor(LoggerMixin):
         that this is the only point where values are actually updated, other
         methods work with stored values.
         '''
-        self.value = self.read_int(self.device_path)
+        self.value = self.read_value()
         self.log_verbose('{} = {}'.format(self, self.get_value_str()))
-
-
-    def write(self, sensor_path, value):
-        '''
-        Write data to the specified sensor, will raise SensorException if that
-        fails in some way. Note that since we're working with sysfs we probably
-        shouldn't write anything that doesn't look like an int, but checking is
-        people who know what they're doing.
-        '''
-        try:
-            with open(sensor_path, 'w') as file:
-                file.write('{}'.format(str(value)))
-                return True
-        except (FileNotFoundError, PermissionError) as e:
-            raise SensorException('{} could not write {} to {} ({})'.format(self, str(value), sensor_path, e))
-        return False
 
 
     def __str__(self):

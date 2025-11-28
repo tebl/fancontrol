@@ -385,19 +385,19 @@ class ControlFanContext(InteractiveContext):
 
 
     def __write_enable(self, value, ignore_exceptions=False):
-        return self.__write_to(self.fan.device.enable_path, value, ignore_exceptions=ignore_exceptions)
+        return self.fan.device.write_enable(value, ignore_exceptions)
 
 
     def __read_value(self):
-        return self.fan.device.read_int(self.fan.device.device_path)
+        return self.fan.device.read_value()
 
 
     def __read_rpm(self):
-        return self.fan.pwm_input.read_int(self.fan.pwm_input.device_path)
+        return self.fan.pwm_input.read_value()
 
 
     def __write_value(self, value, ignore_exceptions=False):
-        return self.__write_to(self.fan.device.device_path, value, ignore_exceptions=ignore_exceptions)
+        return self.fan.device.write_value(value, ignore_exceptions)
 
 
     def __write_to(self, path, value, ignore_exceptions=False):

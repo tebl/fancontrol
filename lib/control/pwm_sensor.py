@@ -30,10 +30,10 @@ class PWMSensor(Sensor):
     STATE_UNKNOWN = 99
 
 
-    def __init__(self, controller, settings, logger, name, device_path, auto_load=True):
-        super().__init__(controller, settings, logger, name, device_path, auto_load=auto_load)
+    def __init__(self, controller, settings, logger, name, hwmon_object, auto_load=True):
+        super().__init__(controller, settings, logger, name, hwmon_object, auto_load=auto_load)
         self.original_enable = None
-        self.enable_path = device_path + self.ENABLE_SUFFIX
+        # self.enable_path = hwmon_object + self.ENABLE_SUFFIX
         self.state = self.STATE_UNKNOWN
         self.requests = []
 
@@ -47,7 +47,7 @@ class PWMSensor(Sensor):
             return super().get_title(include_summary=False)
         return '{} (value={}, enable={})'.format(
             self.name,
-            str(self.format_value(self.read_int(self.device_path))),
+            str(self.format_value(self.read_value())),
             str(self.format_enable(self.read_enable()))
         )
 
@@ -113,7 +113,7 @@ class PWMSensor(Sensor):
             next_value = self.__next_step_value()
             self.log_verbose('{} stepping from {} to {} towards {}'.format(self, str(self.last_value), str(next_value), str(self.target)))
             self.last_value = next_value
-            self.__write(self.device_path, self.name, self.last_value)
+            self.__write(self.name, self.last_value)
             return self.scheduler.set_next()
 
 
@@ -136,7 +136,7 @@ class PWMSensor(Sensor):
             next_value = self.__next_step_value(pwm_steps)
             self.log_verbose('{} stepping from {} to {} towards {}'.format(self, str(self.last_value), str(next_value), str(self.target)))
             self.last_value = next_value
-            self.__write(self.device_path, self.name, self.last_value)
+            self.__write(self.name, self.last_value)
             return self.scheduler.set_next()
 
 
@@ -191,7 +191,7 @@ class PWMSensor(Sensor):
 
 
     def __set_starting(self, pwm_start, pwm_target):
-        if self.__write(self.device_path, self.name, pwm_start):
+        if self.__write(self.name, pwm_start):
             self.__new_state(self.STATE_STARTING)
             self.target = pwm_target
             self.last_value = pwm_start
@@ -276,13 +276,13 @@ class PWMSensor(Sensor):
 
 
     def write_enable(self, value, ignore_exceptions=False):
-        return self.__write(self.enable_path, self.name + '_enable', value, ignore_exceptions)
+        return self.hwmon_object.write_enable(value, ignore_exceptions)
 
 
-    def __write(self, path, name, pwm_value, ignore_exceptions=False):
+    def __write(self, name, pwm_value, ignore_exceptions=False):
         self.log_verbose('{} writing {} to {}'.format(self, str(pwm_value), name))        
         try:
-            return self.write(path, pwm_value)
+            return self.hwmon_object.write_value(pwm_value)
         except SensorException as e:
             if not ignore_exceptions:
                 raise ControlRuntimeError('{} could not write {} to {} ({})'.format(self, pwm_value, name, e))
@@ -292,7 +292,7 @@ class PWMSensor(Sensor):
 
     def read_enable(self):
         try:
-            return self.read_int(self.enable_path)
+            return self.hwmon_object.read_enable()
         except SensorException as e:
             raise ControlRuntimeError('{} could not read {}_enable'.format(self, self.name))
 
@@ -300,6 +300,14 @@ class PWMSensor(Sensor):
     def read_original_enable(self):
         self.original_enable = self.read_enable()
         self.log_debug('{} storing original {}_enable ({})'.format(self, self.name, self.format_enable(self.original_enable)))
+
+
+    def require_writable(self):
+        return True
+    
+
+    def require_has_enable(self):
+        return True
 
 
     def shutdown(self, ignore_exceptions=False):
@@ -319,13 +327,13 @@ class PWMSensor(Sensor):
         target = PWMRequest.get_max_target(self.requests)
         if target is not None:
             self.log_warning('{} could not return to original control ({}), setting it to {}'.format(self, self.format_enable(self.original_enable), str(target)))
-            if self.__write(self.device_path, self.name, target, ignore_exceptions):
+            if self.__write(self.name, target, ignore_exceptions):
                 self.__discard_requests(warn_dropped=False)
                 return True
             
         target = self.__get_max()
         self.log_error('{} could not set that either, but try with max value anyway ({})'.format(self, target))
-        if not self.__write(self.device_path, self.name, target, ignore_exceptions):
+        if not self.__write(self.name, target, ignore_exceptions):
             self.log_error('All attempts failed... hope everything works out for you :-)')
 
         # Clear requests - just in case we somehow bugged into starting up again
@@ -345,6 +353,6 @@ class PWMSensor(Sensor):
 
     def load_configuration(self):
         super().load_configuration()
-        if not os.path.isfile(self.enable_path):
-            raise ConfigurationError('{}.{} not found'.format(self, 'enable_path'), self.enable_path)
-        self.log_verbose('{}.{} input OK'.format(self, 'enable_path', self.device_path))
+        if not self.hwmon_object.is_writable():
+            raise ConfigurationError('{} does not appear writable'.format(self), str(self.hwmon_object))
+        self.log_verbose('{}.{} input OK'.format(self, self.hwmon_object))

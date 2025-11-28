@@ -1,6 +1,7 @@
 import os, subprocess, time
 from pprint import pprint
 from ..exceptions import SensorException
+from ..utils import format_pwm, format_rpm, format_celsius
 from .hwmon_provider import HwmonProvider
 from .hwmon_object import HwmonObject
 
@@ -9,7 +10,6 @@ class HwmonNvidia(HwmonProvider):
     BASE_PATH = '/virtual/nvidia'
     NVIDIA_SMI = '/usr/bin/nvidia-smi'
     PREFIX = 'nvidia'
-
 
 
     def __init__(self, name, gpu_id, gpu_description):
@@ -21,7 +21,7 @@ class HwmonNvidia(HwmonProvider):
 
     def get_driver_name(self):
         return self.gpu_description
-
+    
 
     def get_path(self):
         return os.path.join(
@@ -129,6 +129,10 @@ class NvidiaSensor(HwmonObject):
         super().__init__(hwmon_provider, name)
 
 
+    def read_formatted(self):
+        return str(self.read_value())
+
+
     def get_input(self, dev_base):
         if self.hwmon_provider.matches(dev_base):
             return self.name
@@ -138,21 +142,32 @@ class NvidiaSensor(HwmonObject):
     def get_title(self, include_summary=False, include_value=True, symbolic_name=True):
         name = self.name
         if symbolic_name:
-            name = '{}::{}'.format(str(self.hwmon_provider), self.name)
+            name = self.get_symbol_name()
         if not include_summary:
             return name
         if not include_value:
             return name
-        return '{} (value={})'.format(name, self.read_value())
+        return '{} (value={})'.format(name, self.read_formatted())
+
+
+    def has_enable(self):
+        return False
 
     
     def is_valid(self):
         return True
 
 
-    def get_field(self, field):
+    def is_writable(self):
+        return False
+
+
+    def get_field(self, field, convert_func=None):
         data = self.__class__.get_data(self.hwmon_provider.gpu_id)
-        return data[field]
+        value = data[field]
+        if convert_func is not None:
+            value = convert_func(value)
+        return value
 
 
     def matches(self, hwmon_entry):
@@ -195,9 +210,13 @@ class NvidiaTemp(NvidiaSensor):
     def __init__(self, hwmon_provider, name):
         super().__init__(hwmon_provider, name)
 
+
+    def read_formatted(self):
+        return format_celsius(self.read_value())
+
     
     def read_value(self):
-        return self.get_field('temperature.gpu')
+        return self.get_field('temperature.gpu', int)
 
 
 class NvidiaFan(NvidiaSensor):
@@ -206,6 +225,10 @@ class NvidiaFan(NvidiaSensor):
     def __init__(self, hwmon_provider, name):
         super().__init__(hwmon_provider, name)
 
+
+    def read_formatted(self):
+        return format_rpm(self.read_value())
+
     
     def read_value(self):
-        return self.get_field('fan.speed')
+        return self.get_field('fan.speed', int)

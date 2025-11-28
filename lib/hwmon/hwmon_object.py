@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from ..exceptions import SensorException
 
 
 class HwmonObject(ABC):
@@ -19,6 +20,14 @@ class HwmonObject(ABC):
         '''
         ...
 
+    
+    def get_symbol_name(self):
+        '''
+        Should return a string that uniquely identifies this object, used
+        internally and will in no way be consistent outside of this software.
+        '''
+        return '{}::{}'.format(str(self.hwmon_provider), self.name)
+
 
     def get_provider(self):
         return self.hwmon_provider
@@ -32,6 +41,15 @@ class HwmonObject(ABC):
     @abstractmethod
     def is_valid(self):
         ...
+    
+
+    def has_enable(self):
+        return False
+    
+
+    @abstractmethod
+    def is_writable(self):
+        return False
 
 
     @abstractmethod
@@ -41,6 +59,11 @@ class HwmonObject(ABC):
 
     @abstractmethod
     def read_value(self):
+        ...
+
+
+    @abstractmethod
+    def read_formatted(self):
         ...
 
 

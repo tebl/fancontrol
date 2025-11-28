@@ -223,7 +223,7 @@ class InteractiveContext(Context):
 
     def validate_hwmon_provider(self, value, extended=True):
         value = self.validate_string(value)
-        hwmon_provider = HwmonProvider.get_instance(value)
+        hwmon_provider = HwmonProvider.resolve_provider(value)
         if not hwmon_provider:
             raise PromptValidationException('invalid value')
         return hwmon_provider.get_title(include_summary=True)

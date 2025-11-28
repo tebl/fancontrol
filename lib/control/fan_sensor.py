@@ -3,8 +3,8 @@ from .sensor import Sensor
 
 
 class FanSensor(Sensor):
-    def __init__(self, controller, settings, logger, name, device_path, auto_load=True):
-        super().__init__(controller, settings, logger, name, device_path, auto_load=auto_load)
+    def __init__(self, controller, settings, logger, name, hwmon_object, auto_load=True):
+        super().__init__(controller, settings, logger, name, hwmon_object, auto_load=auto_load)
 
     
     def format_value(self, value):
@@ -20,7 +20,7 @@ class FanSensor(Sensor):
         FanControl deal with such an error if it crops up during planning.
         '''
         try:
-            return self.read_int(self.device_path) > 0
+            return self.read_value() > 0
         except SensorException as e:
             self.log_warning('{}.peek_running encountered a sensor read failure ({})'.format(self, e))
         return False
