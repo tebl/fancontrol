@@ -145,17 +145,32 @@ class InteractiveContext(Context):
         value_pad = utils.pad_number(value_pad)
 
         for key, value, *params in items:
-            styling, key_legend = self.__summarise_params(params)
+            formatting = self.__get_formatting_from(params)
             
-            if key_legend:
-                self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, value_pad=value_pad, sep=sep), styling=styling, end='')
-                self.message(key_legend, styling=InteractiveLogger.DIRECT_OPTION)
+            if formatting['key']:
+                self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, value_pad=value_pad, sep=sep), styling=formatting['styling'], end='')
+                self.message(formatting['key'] + formatting['line_padding'], styling=InteractiveLogger.DIRECT_OPTION)
             else:
-                self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, value_pad=value_pad, sep=sep), styling=styling)
+                self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, value_pad=value_pad, sep=sep) + formatting['line_padding'], styling=formatting['styling'])
             num_lines += 1
         self.message()
         num_lines += 1
         return num_lines
+
+
+    def __get_formatting_from(self, params):
+        if (len(params) > 1):
+            raise ValueError('extra parameters encountered')
+        result = {}
+        if params:
+            result = params.pop(0)
+        if 'styling' not in result:
+            result['styling'] = Logger.DEBUG
+        if 'key' not in result:
+            result['key'] = None
+        if 'line_padding' not in result:
+            result['line_padding'] = ''
+        return result
 
 
     def add_summary_value(self, summary, title, value, format_func=None, validation_func=None, format_dict=None, error=None, extended=True):
@@ -248,20 +263,6 @@ class InteractiveContext(Context):
         if value is None:
             raise PromptValidationException('doesn\'t have a value')
         return value
-
-
-    def __summarise_params(self, params):
-        if (len(params) > 1):
-            raise ValueError('extra parameters encountered')
-        styling = Logger.DEBUG
-        key_legend = None
-        if params:
-            params = params.pop(0)
-            if 'styling' in params:
-                styling = params['styling']
-            if 'key' in params:
-                key_legend = params['key']
-        return styling, key_legend
 
 
     def __format_summary_entry(self, key, value, key_pad=16, value_pad=0, sep=' '):

@@ -401,7 +401,7 @@ class InteractiveLogger(ConsoleLogger):
                 if valid:
                     return result
                 else:
-                    self.clear_previous_line()
+                    self.move_cursor_up()
                     continue
 
             return result
@@ -480,9 +480,29 @@ class InteractiveLogger(ConsoleLogger):
         self.log_direct(self.formatter.ansi_end(), end='')
 
     
-    def clear_previous_line(self, count=1):
+    def move_cursor_up(self, count=1, clear_line=True):
         for i in range(count):
             # Move cursor up 
             sys.stdout.write("\033[F")
-            # Clear line
-            sys.stdout.write("\033[K")
+            if clear_line:
+                sys.stdout.write("\033[K")
+
+
+class ANSIContext:
+    CURSOR_HIDE = "\033[?25l"
+    CURSOR_SHOW = "\033[?25h"
+
+
+    def __init__(self, interactive_logger, ansi_set, ansi_unset):
+        self.interactive_logger = interactive_logger
+        self.ansi_set = ansi_set
+        self.ansi_unset = ansi_unset
+
+
+    def __enter__(self):
+        self.interactive_logger.log_direct(self.ansi_set, end='')
+        return self
+
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.interactive_logger.log_direct(self.ansi_unset, end='')
