@@ -4,6 +4,7 @@ from ..exceptions import *
 from ..scheduler import MicroScheduler
 from .sensor import Sensor
 from .pwm_request import PWMRequest
+from ..utils import format_pwm, format_rpm, format_celsius
 
 
 class PWMSensor(Sensor):
@@ -39,6 +40,7 @@ class PWMSensor(Sensor):
 
         self.last_value = 0
         self.target = 0
+        self.last_target = None
         self.scheduler = None
 
 
@@ -203,10 +205,17 @@ class PWMSensor(Sensor):
         target = PWMRequest.get_max_target(self.requests)
         if target is not None:
             self.target = target
+            self.__check_target_changed()
         if (self.target == 0):
             self.__new_state(self.STATE_STOPPING)
 
         self.__discard_requests(warn_dropped=False)
+
+
+    def __check_target_changed(self):
+        if self.last_target is None or not self.last_target == self.target:
+            self.log_debug('{} target set to {}'.format(self, format_pwm(self.target)))
+            self.last_target = self.target
 
 
     def request_value(self, request):

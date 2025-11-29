@@ -18,19 +18,26 @@ class FanConfig(BaseControl):
         self.console = console
         self.running = False
         self.dev_debug = dev_debug
+        self.context = None
 
 
     def control(self, auto_select=None):
         self.auto_select = auto_select
         self.running = True
-        self.context = MainContext(self, None)
+        self.context = self.examine_context(MainContext(self, None))
         try:
             while self.running and self.context is not None:
-                self.context = self.context.interact(auto_select=self.auto_select)
+                self.context = self.examine_context(self.context.interact(auto_select=self.auto_select))
         except KeyboardInterrupt:
             self.running = False
         finally:
             self.shutdown()
+
+
+    def examine_context(self, context):
+        if not self.context == context:
+            self.log_debug('Setting new context {}'.format(context))
+        return context
 
 
     def shutdown(self):
