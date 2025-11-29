@@ -139,6 +139,7 @@ class InteractiveContext(Context):
         if not items:
             return
         self.message('{}:'.format(title), styling=InteractiveLogger.DIRECT_HIGHLIGHT)
+        num_lines = 1
         key_pad = len(max([key for key, value, *params in items], key=len)) + len(sep)
         value_pad = len(max([value for key, value, *params in items], key=len)) + len(sep)
         value_pad = utils.pad_number(value_pad)
@@ -151,7 +152,10 @@ class InteractiveContext(Context):
                 self.message(key_legend, styling=InteractiveLogger.DIRECT_OPTION)
             else:
                 self.message(prefix + self.__format_summary_entry(key, value, key_pad=key_pad, value_pad=value_pad, sep=sep), styling=styling)
+            num_lines += 1
         self.message()
+        num_lines += 1
+        return num_lines
 
 
     def add_summary_value(self, summary, title, value, format_func=None, validation_func=None, format_dict=None, error=None, extended=True):

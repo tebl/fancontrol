@@ -18,6 +18,7 @@ class ControlFanContext(InteractiveContext):
     KEY_SET_TEST = 't'
     KEY_SET_KEEP = 'k'
     KEY_SET_SIMULATE = 's'
+    KEY_SET_WATCH = 'w'
 
 
     def __init__(self, *args, fan):
@@ -98,6 +99,7 @@ class ControlFanContext(InteractiveContext):
         builder.set(self.KEY_SET_TEST, 'Test fan limits')
         builder.set(self.KEY_SET_KEEP, 'Keep current values')
         builder.set(self.KEY_SET_SIMULATE, 'Simulate')
+        builder.set(self.KEY_SET_WATCH, 'Watch sensors')        
         builder.add_back()
         return builder
     
@@ -125,6 +127,11 @@ class ControlFanContext(InteractiveContext):
                 self.message()
             case self.KEY_SET_SIMULATE:
                 self.__handle_simulate()
+            case self.KEY_SET_WATCH:
+                self.parent.watch_fans(fan_list=[self.fan])
+            case _:
+                if auto_select:
+                    auto_select.clear()
         return (self, input)
 
 

@@ -9,6 +9,9 @@ from . import *
 ACRONYMS = [ ]
 'Acronyms used as default by the module, add anything expected to be globally true'
 
+PLURALISED = { 'cactus': 'cacti'}
+'Exceptions to pluralisation rules implemented for to_plural(). Cactus for example'
+
 
 class Acronym:
     def __init__(self, value):
@@ -40,6 +43,24 @@ def to_sentence(*args, acronyms=None, first=True):
             words[index] = str(word)
         first = False
     return ' '.join(words)
+
+
+def to_plural(word, count=2, pluralised=None):
+    '''
+    Convert the specified word to its plural form, used when using numbers as
+    part of sentences.
+    '''
+    if pluralised is None:
+        pluralised = PLURALISED
+    if count == 1:
+        return word
+    if word in pluralised:
+        return pluralised[word]
+    if not word:
+        return ''
+    if word[-1] == 's':
+        return word + 'es'
+    return word + 's'
 
 
 def is_acronym(word, acronyms=None):

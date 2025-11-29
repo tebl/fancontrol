@@ -24,7 +24,7 @@ class MainLoadedContext(InteractiveContext):
                 return self.parent
             case 'c':
                 if self.__attempt_load_fans():
-                    return MainCompleteContext(self.fan_config, parent=None)
+                    return MainCompleteContext(self.fan_config, parent=self)
             case 'n':
                 return SectionContext(self.fan_config, self, section=str(uuid.uuid4())).create()
             case _:
@@ -86,7 +86,7 @@ class MainLoadedContext(InteractiveContext):
         self.prompt_values = {}
         builder.set('c', 'Load fan configuration', highlight=True, reorder=True)
         builder.set('n', 'New fan configuration', highlight=True, reorder=True)
-        builder.add_exit(reorder=True)
+        builder.add_back(reorder=True)
         for section in self.sections:
             key = builder.set_next(section)
             self.prompt_values[key] = section

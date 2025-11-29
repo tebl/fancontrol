@@ -203,6 +203,7 @@ class SectionContext(InteractiveContext):
         if input:
             try:
                 if self.fan_config.settings.rename_section(self.section, input):
+                    self.fan_config.settings.save()
                     self.section = input
                     self.message(self.CONFIG_UPDATED, end='\n\n')
             except ControlRuntimeError as e:

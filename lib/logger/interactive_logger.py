@@ -480,8 +480,9 @@ class InteractiveLogger(ConsoleLogger):
         self.log_direct(self.formatter.ansi_end(), end='')
 
     
-    def clear_previous_line(self):
-         # Move cursor up 
-        sys.stdout.write("\033[F")
-         # Clear line
-        sys.stdout.write("\033[K")
+    def clear_previous_line(self, count=1):
+        for i in range(count):
+            # Move cursor up 
+            sys.stdout.write("\033[F")
+            # Clear line
+            sys.stdout.write("\033[K")
