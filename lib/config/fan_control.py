@@ -173,6 +173,7 @@ class ControlFanContext(InteractiveContext):
         self.message()
         items = []
 
+        TemperatureSpan.reset()
         for temperature in range(temp_from, temp_to+1, 5):
             TemperatureSpan.add(temperature, self.fan.simulate(temperature, 100).target_value)
         for result in TemperatureSpan.get():
@@ -400,15 +401,6 @@ class ControlFanContext(InteractiveContext):
         return self.fan.device.write_value(value, ignore_exceptions)
 
 
-    def __write_to(self, path, value, ignore_exceptions=False):
-        try:
-            return self.fan.device.write(path, value)
-        except (SensorException, ControlRuntimeError) as e:
-            if not ignore_exceptions:
-                raise
-            self.message('... ignoring exception ({})'.format(e), styling=Logger.WARNING)
-
-
     def __restore_state(self):
         changes = False
         if self.original_value is not None:
@@ -495,7 +487,6 @@ class TestAbortedException(ControlRuntimeError):
 
 class TemperatureSpan:
     instances = []
-    empty = True
 
 
     def __init__(self, start_at, value):
@@ -516,15 +507,9 @@ class TemperatureSpan:
 
 
     @classmethod
-    def get(cls):
-        return cls.instances
-
-
-    @classmethod
     def add(cls, temperature, value, fill_gaps=True):
-        if cls.empty:
+        if not cls.instances:
             cls.instances.append(cls(start_at=temperature, value=value))
-            cls.empty = False
         last = cls.instances[-1]
         if last.value == value:
             last.stop_at = temperature
@@ -532,3 +517,13 @@ class TemperatureSpan:
             if fill_gaps and last.stop_at < (temperature - 1):
                 last.stop_at = temperature - 1
             cls.instances.append(cls(start_at=temperature, value=value))
+
+
+    @classmethod
+    def get(cls):
+        return cls.instances
+
+
+    @classmethod
+    def reset(cls):
+        cls.instances.clear()

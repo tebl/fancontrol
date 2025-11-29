@@ -54,6 +54,7 @@ def get_auto_keys(auto_key):
         return [c for c in auto_key]
     return None
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.description = 'Python fancontrol, spinning fans in the 21st century'
