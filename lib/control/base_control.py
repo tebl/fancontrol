@@ -8,6 +8,7 @@ from .fan import Fan
 
 class BaseControl(ABC, LoggerMixin):
     BASE_PATH = '/sys/class/hwmon'
+    PROVIDER_AUTO = 'auto'
 
 
     def __init__(self, settings, logger, resolver, auto_load=True):
@@ -18,7 +19,6 @@ class BaseControl(ABC, LoggerMixin):
         self.fans = []
         self.sensors = {}
         self.outputs = {}
-        self.object_resolver = None
         if self.auto_load:
             self.load()
 
@@ -107,10 +107,15 @@ class BaseControl(ABC, LoggerMixin):
         return self.resolver.resolve_object(value, self.dev_base)
 
    
-    def resolve_provider(self, value):
+    def resolve_provider(self, provider_name, driver_name):
         '''
+        Resolve provider name if one has been specified, but on many systems
+        the ordering of these will be lost so in the end we might need to
+        find a suitable entry by matching it to the driver name.
         '''
-        return self.resolver.resolve_provider(value)
+        if provider_name == self.PROVIDER_AUTO:
+            return self.resolver.resolve_driver_name(driver_name)
+        return self.resolver.resolve_provider(provider_name)
 
 
 
@@ -139,7 +144,7 @@ class BaseControl(ABC, LoggerMixin):
 
 
     def __check_dev_base(self):
-        dev_base = self.resolve_provider(self.settings.dev_base)
+        dev_base = self.resolve_provider(self.settings.dev_base, self.settings.dev_name)
         if not dev_base:
             raise ConfigurationError('Setting "dev_base" did not resolve to a valid provider (value={})'.format(self.settings.dev_base), self.settings.dev_base)
         if not dev_base.check_driver_name(self.settings.dev_name):

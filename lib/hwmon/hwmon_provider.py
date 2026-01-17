@@ -160,6 +160,14 @@ class HwmonProvider(ABC):
 
 
     @classmethod
+    def resolve_driver_name(cls, driver_name):
+        for provider_instance in cls.instances:
+            if provider_instance.check_driver_name(driver_name):
+                return provider_instance
+        return None
+
+
+    @classmethod
     def have_instance(cls, name):
         return cls.resolve_provider(name) is not None
 

@@ -52,7 +52,9 @@ class FanControl(BaseControl):
 
     def load_dependencies(self):
         HwmonProvider.configure(self.settings, self.logger)
-        return HwmonProvider.load()
+        if not HwmonProvider.load():
+            raise ConfigurationError('HwmonProvider failed to complete loading')
+        return super().load_dependencies()
 
 
     def resolve_object(self, value):
