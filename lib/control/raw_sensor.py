@@ -16,13 +16,24 @@ class RawSensor(LoggerMixin):
         sensible details in a subclass.
         '''
         return str(value)
-    
 
-    def get_title(self, include_summary=False):
-        if not include_summary:
+
+    def get_name(self, compact=False) -> str:
+        if not compact:
             return self.name
-        return '{} (value={})'.format(
-            self.name,
+        return os.path.basename(os.path.normpath(self.name))
+
+
+    def get_title(self, include_summary=False, compact=False):
+        if not include_summary:
+            return self.get_name(compact)
+        if not compact:        
+            return '{} (value={})'.format(
+                self.get_name(compact),
+                str(self.format_value(self.read_value()))
+            )
+        return '{}={}'.format(
+            self.get_name(compact),
             str(self.format_value(self.read_value()))
         )
 

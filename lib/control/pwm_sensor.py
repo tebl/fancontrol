@@ -34,7 +34,6 @@ class PWMSensor(Sensor):
     def __init__(self, controller, settings, logger, name, hwmon_object, auto_load=True):
         super().__init__(controller, settings, logger, name, hwmon_object, auto_load=auto_load)
         self.original_enable = None
-        # self.enable_path = hwmon_object + self.ENABLE_SUFFIX
         self.state = self.STATE_UNKNOWN
         self.requests = []
 
@@ -214,7 +213,7 @@ class PWMSensor(Sensor):
 
     def __check_target_changed(self):
         if self.last_target is None or not self.last_target == self.target:
-            self.log_debug('{} target set to {}'.format(self, format_pwm(self.target)))
+            self.log_debug('{} target set to {} from {}'.format(self, format_pwm(self.target), PWMRequest.summarise(self.requests)))
             self.last_target = self.target
 
 

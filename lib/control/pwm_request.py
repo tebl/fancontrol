@@ -12,6 +12,10 @@ class PWMRequest:
         )
     
 
+    def summary(self):
+        return '{}'.format(str(self.requester.sensor.get_title(include_summary=True, compact=True)))
+
+
     @staticmethod
     def get_max_target(requests):
         max_start, max_target = PWMRequest.get_max(requests)
@@ -57,3 +61,7 @@ class PWMRequest:
             if req_target is None or request.target_value > req_target.target_value:
                 req_target = request
         return req_start, req_target
+    
+    @staticmethod
+    def summarise(requests) -> str:
+        return ','.join([x.summary() for x in requests])
