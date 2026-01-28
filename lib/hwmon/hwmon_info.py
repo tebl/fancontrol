@@ -181,6 +181,10 @@ class HwmonFile(HwmonObject):
         return os.path.join(self.base_path, self.input)
 
 
+    def get_permission_paths(self):
+        return [ os.path.join(self.base_path, self.input) ]
+
+
     def get_title(self, include_summary=False, include_value=True, symbolic_name=True):
         name = self.input
         if symbolic_name:
@@ -317,8 +321,10 @@ class HwmonPWM(HwmonFile):
     SUFFIX = '_enable'
 
 
-    def read_formatted_value(self):
-        return format_pwm(self.read_value())
+    def get_permission_paths(self):
+        paths = super().get_permission_paths()
+        paths.append(self.get_entry_path(self.SUFFIX))
+        return paths
 
 
     def has_enable(self):
@@ -335,6 +341,10 @@ class HwmonPWM(HwmonFile):
             strip_contents=True, 
             convert_func=int
         )
+
+
+    def read_formatted_value(self):
+        return format_pwm(self.read_value())
 
 
     def write_enable(self, value, ignore_exceptions=False):

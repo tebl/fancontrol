@@ -129,14 +129,25 @@ class NvidiaSensor(HwmonObject):
         super().__init__(hwmon_provider, name)
 
 
-    def read_formatted(self):
-        return str(self.read_value())
+    def get_field(self, field, convert_func=None):
+        data = self.__class__.get_data(self.hwmon_provider.gpu_id)
+        value = data[field]
+        if convert_func is not None:
+            value = convert_func(value)
+        return value
 
 
     def get_input(self, dev_base):
         if self.hwmon_provider.matches(dev_base):
             return self.name
         return os.path.join(self.hwmon_provider.get_path(), self.name)
+
+
+    def get_permission_paths(self):
+        '''
+        Makes no sense for virtual entries, so we'll just provide an empty list.
+        '''
+        return []
 
 
     def get_title(self, include_summary=False, include_value=True, symbolic_name=True):
@@ -162,16 +173,12 @@ class NvidiaSensor(HwmonObject):
         return False
 
 
-    def get_field(self, field, convert_func=None):
-        data = self.__class__.get_data(self.hwmon_provider.gpu_id)
-        value = data[field]
-        if convert_func is not None:
-            value = convert_func(value)
-        return value
-
-
     def matches(self, hwmon_entry):
         return self.name == hwmon_entry
+
+
+    def read_formatted(self):
+        return str(self.read_value())
 
 
     @classmethod

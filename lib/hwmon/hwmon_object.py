@@ -12,6 +12,14 @@ class HwmonObject(ABC):
 
 
     @abstractmethod
+    def get_permission_paths(self) -> list:
+        '''
+        Get paths needed for changing permissions related to this entry.
+        '''
+        ...
+
+
+    @abstractmethod
     def get_input(self, dev_base):
         '''
         Get input path if the supplied dev_base does not match the one we

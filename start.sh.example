@@ -1,0 +1,18 @@
+#!/bin/bash
+CONFIGURATION="fancontrol.ini"
+
+current_user=$(whoami)
+cd "$(dirname "$0")"
+
+sudo ./fanchown.py -c $CONFIGURATION -u $current_user
+RESULT=$?
+
+if [ $RESULT -eq 0 ]; then
+    ./fancontrol.py -c $CONFIGURATION
+    RESULT=$?
+    if [ $RESULT -ne 0 ]; then
+        read -p "ENTER when ready..."
+    fi
+else
+    read -p "ENTER when ready..."
+fi
